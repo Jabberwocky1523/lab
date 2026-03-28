@@ -15,19 +15,20 @@ void start()
     int id = r_mhartid();
     w_tp(id);
 
-    // 修改mstatus寄存器，设置MPP为S-mode
+    // 配置物理内存保护，使监督者模式
+    // 能够访问所有物理内存。
+    w_pmpaddr0(0x3fffffffffffffull);
+    w_pmpcfg0(0xf);
+
+    // 修改mstatus寄存器，假装上一个状态是S-mode
     uint64 status = r_mstatus();
     status &= ~MSTATUS_MPP_MASK;
     status |= MSTATUS_MPP_S;
     w_mstatus(status);
 
-    // 设置M-mode的返回地址为main函数
+    // 设置M-mode的返回地址
     w_mepc((uint64)main);
 
-    // 设置S-mode的栈指针
-    uint64 sp = (uint64)&CPU_stack + (id + 1) * 4096;
-    __asm__ volatile("mv sp, %0" : : "r"(sp));
-
-    // 触发状态迁移，回到S-mode
-    __asm__ volatile("mret");
+    // 触发状态迁移，回到上一个状态（M-mode->S-mode）
+    asm volatile("mret");
 }

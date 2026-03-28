@@ -269,3 +269,22 @@ static inline void sfence_vma()
 {
     __asm__ volatile("sfence.vma zero, zero");
 }
+
+static inline void
+w_pmpcfg0(uint64 x)
+{
+    __asm__ volatile("csrw pmpcfg0, %0" : : "r"(x));
+}
+
+static inline void
+w_pmpaddr0(uint64 x)
+{
+    __asm__ volatile("csrw pmpaddr0, %0" : : "r"(x));
+}
+
+static inline void
+w_stimecmp(uint64 x)
+{
+    // asm volatile("csrw stimecmp, %0" : : "r" (x));
+    __asm__ volatile("csrw 0x14d, %0" : : "r"(x));
+}

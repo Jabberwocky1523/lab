@@ -1,5 +1,6 @@
 # 这个文件负责公共的配置
 
+TOOLPREFIX = riscv64-linux-gnu-
 CC = ${TOOLPREFIX}gcc
 LD = ${TOOLPREFIX}ld
 OBJCOPY = ${TOOLPREFIX}objcopy

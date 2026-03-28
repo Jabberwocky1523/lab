@@ -4,6 +4,9 @@
 
 static char digits[] = "0123456789abcdef";
 
+/* 如果发生panic, UART的停止标志 */
+volatile int panicked = 0;
+
 /* printf的自旋锁 */
 static spinlock_t print_lk;
 
@@ -123,7 +126,6 @@ void printf(const char *fmt, ...)
     char *s;
     int length_mod = 0; // 0: none, 1: l, 2: ll
     int base, sign;
-
     spinlock_acquire(&print_lk);
 
     va_start(ap, fmt);
@@ -150,7 +152,7 @@ void printf(const char *fmt, ...)
 
         cx = fmt[i] & 0xff;
 
-        // Handle format specifiers
+        // 处理格式化说明符
         switch (cx)
         {
         case 'd':
@@ -228,13 +230,9 @@ void printf(const char *fmt, ...)
         }
     }
     va_end(ap);
-
     spinlock_release(&print_lk);
     return;
 }
-
-/* 如果发生panic, UART的停止标志 */
-volatile int panicked = 0;
 
 /* 报错并终止输出 */
 void panic(const char *s)

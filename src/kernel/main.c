@@ -1,9 +1,52 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
+volatile static int started = 0;
 
+volatile static int sum = 0;
+void test1()
+{
+    int cpuid = r_tp();
+    if (cpuid == 0)
+    {
+        print_init();
+        printf("this is master\n");
+        started = 1;
+    }
+    else
+    {
+        while (started == 0)
+            ;
+        printf("this is %dcpu\n", cpuid);
+    }
+}
+void test2()
+{
+    int cpuid = r_tp();
+    if (cpuid == 0)
+    {
+        print_init();
+        printf("cpu %d is booting!\n", cpuid);
+        __sync_synchronize();
+        started = 1;
+        for (int i = 0; i < 1000000; i++)
+            sum++;
+        printf("cpu %d report: sum = %d\n", cpuid, sum);
+    }
+    else
+    {
+        while (started == 0)
+            ;
+        __sync_synchronize();
+        printf("cpu %d is booting!\n", cpuid);
+        for (int i = 0; i < 1000000; i++)
+            sum++;
+        printf("cpu %d report: sum = %d\n", cpuid, sum);
+    }
+    while (1)
+        ;
+}
 int main()
 {
-    print_init();
-    printf("hello,world!");
+    test2();
     return 0;
 }
