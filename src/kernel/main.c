@@ -9,7 +9,7 @@ void test1()
     if (cpuid == 0)
     {
         print_init();
-        printf("this is master\n");
+        printf("Hello world\n");
         started = 1;
     }
     else
@@ -17,7 +17,7 @@ void test1()
         while (started == 0)
             ;
         started = 1;
-        printf("this is %dcpu\n", cpuid);
+        printf("Hello world\n", cpuid);
     }
 }
 void test2()
@@ -33,9 +33,9 @@ void test2()
         int i = 0;
         for (; i < 100000; i++)
         {
-            spinlock_acquire(&sum_lk);
+            // spinlock_acquire(&sum_lk);
             sum++;
-            spinlock_release(&sum_lk);
+            // spinlock_release(&sum_lk);
         }
         printf("cpu %d report: sum = %d\n", cpuid, sum);
     }
@@ -56,6 +56,6 @@ void test2()
 }
 int main()
 {
-    test2();
+    test1();
     return 0;
 }

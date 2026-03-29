@@ -48,5 +48,7 @@ LAB1
 ## 2.printf
 ### 加锁前
 ![alt text](picture/image.png)
+![alt text](picture/image3.png)
 ### 加锁后
+![alt text](picture/image-1.png)
 ![alt text](picture/image-2.png)
