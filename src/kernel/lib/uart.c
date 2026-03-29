@@ -41,9 +41,15 @@ void uart_putc_sync(int c)
     // 等待TX队列进入idle状态
     while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
         ;
-
     // 输出
     WriteReg(THR, c);
+
+    //  处理BackSpace
+    if (c == '\b')
+    {
+        WriteReg(THR, ' ');
+        WriteReg(THR, '\b');
+    }
 
     // 开启中断
     pop_off();

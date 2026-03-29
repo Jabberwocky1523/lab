@@ -209,7 +209,8 @@ void printf(const char *fmt, ...)
             break;
 
         case 's':
-            if ((s = va_arg(ap, char *)) == 0)
+            s = va_arg(ap, char *);
+            if (s == 0)
                 s = "(null)";
             for (; *s; s++)
                 uart_putc_sync(*s);

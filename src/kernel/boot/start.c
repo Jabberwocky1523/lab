@@ -1,5 +1,5 @@
 #include "../arch/mod.h"
-
+#include "../trap/method.h"
 // 每个CPU在运行操作系统时需要一个初始的函数栈
 __attribute__((aligned(16))) uint8 CPU_stack[4096 * NCPU];
 
@@ -14,6 +14,17 @@ void start()
     // 所以需要将hartid存到可访问的寄存器tp
     int id = r_mhartid();
     w_tp(id);
+
+    // 委托S-mode处理所有trap
+    //// 中断使能
+    w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
+    //// 委托异常
+    w_medeleg(0xffff);
+    //// 委托终端
+    w_mideleg(0xffff);
+
+    // 时钟中断初始化 (唯一需要在M-mode处理的中断)
+    timer_init();
 
     // 配置物理内存保护，使监督者模式
     // 能够访问所有物理内存。
