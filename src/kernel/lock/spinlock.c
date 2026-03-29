@@ -34,7 +34,7 @@ void pop_off(void)
 // 自选锁初始化
 void spinlock_init(spinlock_t *lk, char *name)
 {
-    lk->cpuid = 0;
+    lk->cpuid = -1;
     lk->name = name;
     lk->locked = 0;
 }

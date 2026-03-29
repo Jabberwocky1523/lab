@@ -1,7 +1,7 @@
 #include "arch/mod.h"
 #include "lib/mod.h"
 volatile static int started = 0;
-
+static spinlock_t sum_lk;
 volatile static int sum = 0;
 void test1()
 {
@@ -16,6 +16,7 @@ void test1()
     {
         while (started == 0)
             ;
+        started = 1;
         printf("this is %dcpu\n", cpuid);
     }
 }
@@ -24,12 +25,18 @@ void test2()
     int cpuid = r_tp();
     if (cpuid == 0)
     {
+        spinlock_init(&sum_lk, "sum_lk");
         print_init();
         printf("cpu %d is booting!\n", cpuid);
         __sync_synchronize();
         started = 1;
-        for (int i = 0; i < 1000000; i++)
+        int i = 0;
+        for (; i < 100000; i++)
+        {
+            spinlock_acquire(&sum_lk);
             sum++;
+            spinlock_release(&sum_lk);
+        }
         printf("cpu %d report: sum = %d\n", cpuid, sum);
     }
     else
@@ -38,12 +45,14 @@ void test2()
             ;
         __sync_synchronize();
         printf("cpu %d is booting!\n", cpuid);
-        for (int i = 0; i < 1000000; i++)
+        for (int i = 0; i < 100000; i++)
+        {
+            spinlock_acquire(&sum_lk);
             sum++;
+            spinlock_release(&sum_lk);
+        }
         printf("cpu %d report: sum = %d\n", cpuid, sum);
     }
-    while (1)
-        ;
 }
 int main()
 {
