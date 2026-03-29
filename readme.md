@@ -1,5 +1,6 @@
 # lab-2 内存管理初步
 ## 0.代码组织结构
+'''
 ECNU-OSLAB-2025-TASK
 ├── LICENSE        开源协议
 ├── .vscode        配置了可视化调试环境
@@ -42,15 +43,18 @@ ECNU-OSLAB-2025-TASK
         │   ├── mod.h (NEW)
         │   └── type.h (NEW, 增加CLINT和PLIC寄存器定义)
         └── main.c (DONE)
+'''
 ## 1.物理内存
-    测试用例1:
-    ![alt text](picture/image.png)
-    测试用例2:
-    ![alt text](picture/image-2.png)
-    测试用例3:
-    ![alt text](picture/image-1.png)
+### 测试用例1:
+![alt text](picture/image.png)
+### 测试用例2:
+![alt text](picture/image-2.png)
+### 测试用例3:
+![alt text](picture/image-1.png)
 ## 2.虚拟内存
-    测试用例1:
-    ![alt text](picture/image-4.png)
-    测试用例2:
-    ![alt text](picture/image-5.png)
+### 测试用例1:
+![alt text](picture/image-4.png)
+### 测试用例2:
+![alt text](picture/image-5.png)
+
+

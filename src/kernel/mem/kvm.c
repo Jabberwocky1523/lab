@@ -13,7 +13,8 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
     {
         panic("当前va超过va_max!");
     }
-    for (int lev = 2; lev > 0; lev--)
+    int lev = 2;
+    while (lev != 0)
     {
         pte_t *pte = &pgtbl[VA_TO_VPN(va, lev)];
         if (*pte & PTE_V)
@@ -33,6 +34,7 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
                 return NULL;
             }
         }
+        lev--;
     }
     return &pgtbl[VA_TO_VPN(va, 0)];
 }

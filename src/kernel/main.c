@@ -83,7 +83,7 @@ int main()
 
         printf("cpu %d is booting!\n", cpuid);
         __sync_synchronize();
-        // started = 1;
+        started = 1;
 
         test_mapping_and_unmapping();
     }
