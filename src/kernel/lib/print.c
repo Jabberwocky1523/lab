@@ -126,7 +126,7 @@ void printf(const char *fmt, ...)
     char *s;
     int length_mod = 0; // 0: none, 1: l, 2: ll
     int base, sign;
-    // spinlock_acquire(&print_lk);
+    spinlock_acquire(&print_lk);
 
     va_start(ap, fmt);
     for (i = 0; (cx = fmt[i] & 0xff) != 0; i++)
@@ -230,7 +230,7 @@ void printf(const char *fmt, ...)
         }
     }
     va_end(ap);
-    // spinlock_release(&print_lk);
+    spinlock_release(&print_lk);
     return;
 }
 

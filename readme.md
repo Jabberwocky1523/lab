@@ -32,8 +32,8 @@ ECNU-OSLAB-2025-TASK
         │   ├── mod.h
         │   └── type.h
         ├── mem    内存模块
-        │   ├── pmem.c (TODO, 物理内存管理)
-        │   ├── kvm.c (TODO, 内核态虚拟内存管理)
+        │   ├── pmem.c (DONE, 物理内存管理)
+        │   ├── kvm.c (DONE, 内核态虚拟内存管理)
         │   ├── method.h (NEW)
         │   ├── mod.h (NEW)
         │   └── type.h (NEW)
@@ -41,4 +41,16 @@ ECNU-OSLAB-2025-TASK
         │   ├── method.h (NEW)
         │   ├── mod.h (NEW)
         │   └── type.h (NEW, 增加CLINT和PLIC寄存器定义)
-        └── main.c (TODO)
+        └── main.c (DONE)
+## 1.物理内存
+    测试用例1:
+    ![alt text](picture/image.png)
+    测试用例2:
+    ![alt text](picture/image-2.png)
+    测试用例3:
+    ![alt text](picture/image-1.png)
+## 2.虚拟内存
+    测试用例1:
+    ![alt text](picture/image-4.png)
+    测试用例2:
+    ![alt text](picture/image-5.png)

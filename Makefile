@@ -1,9 +1,8 @@
 # 引入通用配置文件
 include common.mk
 
-
 # 配置CPU核心数量
-CPUNUM = 2
+CPUNUM = 1
 # 定义目标文件输出目录
 TARGET = target
 # 定义各模块路径
@@ -62,6 +61,8 @@ ifeq ($(wildcard $(TARGET)),)
 	@mkdir -p $(TARGET)/kernel/boot
 	@mkdir -p $(TARGET)/kernel/lock
 	@mkdir -p $(TARGET)/kernel/lib
+	@mkdir -p $(TARGET)/kernel/mem
+	@mkdir -p $(TARGET)/kernel/trap
 endif
 
 # 编译规则：将汇编文件(.S)编译为目标文件(.o)

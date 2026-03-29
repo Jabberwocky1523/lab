@@ -9,6 +9,32 @@ static pgtbl_t kernel_pgtbl;
 // 提示：使用 VA_TO_VPN + PTE_TO_PA + PA_TO_PTE
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 {
+    if (va >= VA_MAX)
+    {
+        panic("当前va超过va_max!");
+    }
+    for (int lev = 2; lev > 0; lev--)
+    {
+        pte_t *pte = &pgtbl[VA_TO_VPN(va, lev)];
+        if (*pte & PTE_V)
+        {
+            pgtbl = (pgtbl_t)PTE_TO_PA(*pte);
+        }
+        else
+        {
+            if (alloc)
+            {
+                pgtbl = (pgtbl_t)pmem_alloc(check_inkernel(va));
+                memset(pgtbl, 0, PGSIZE);
+                *pte = PA_TO_PTE(pgtbl) | PTE_V;
+            }
+            else
+            {
+                return NULL;
+            }
+        }
+    }
+    return &pgtbl[VA_TO_VPN(va, 0)];
 }
 
 // 在pgtbl中建立 [va, va + len) -> [pa, pa + len) 的映射
@@ -17,18 +43,77 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
 // 注意: perm 应该如何使用
 void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm)
 {
+    pte_t *pte;
+
+    if (va % PGSIZE != 0 || pa % PGSIZE != 0)
+    {
+        panic("page is not page-aligned!");
+    }
+    uint64 va_end = va + len;
+    while (1)
+    {
+        if (va >= va_end)
+        {
+            break;
+        }
+        /* code */
+        pte = vm_getpte(pgtbl, va, 1);
+        if (pte == NULL)
+        {
+            return;
+        }
+        *pte = PA_TO_PTE(pa) | PTE_V | perm;
+        va += PGSIZE;
+        pa += PGSIZE;
+    }
 }
 
 // 解除pgtbl中[va, va+len)区域的映射
 // 如果freeit == true则释放对应物理页, 默认是用户的物理页
 void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit)
 {
+    pte_t *pte;
+    uint64 va_end = va + len;
+    while (1)
+    {
+        /* code */
+        if (va_end <= va)
+        {
+            break;
+        }
+        pte = vm_getpte(pgtbl, va, false);
+        if (pte == NULL)
+        {
+            panic("unmap getpte error!");
+        }
+        if (freeit)
+        {
+            uint64 pa = PTE_TO_PA(*pte);
+            pmem_free(pa, check_inkernel(pa));
+        }
+        *pte = 0;
+        va += PGSIZE;
+    }
 }
 
 // 完成UART、CLINT、PLIC、内核代码区、内核数据区、可分配区域的页表映射
 // 相当于部分填充kernel_pgtbl
 void kvm_init()
 {
+    kernel_pgtbl = (pgtbl_t)pmem_alloc(true);
+    memset(kernel_pgtbl, 0, PGSIZE);
+    // UART
+    vm_mappages(kernel_pgtbl, UART_BASE, UART_BASE, PGSIZE, PTE_R | PTE_W);
+    // CLINT
+    vm_mappages(kernel_pgtbl, CLINT_BASE, CLINT_BASE, 0x10000, PTE_R | PTE_W);
+    // PLIC
+    vm_mappages(kernel_pgtbl, PLIC_BASE, PLIC_BASE, 0x400000, PTE_R | PTE_W);
+    // 内核代码
+    vm_mappages(kernel_pgtbl, KERNEL_BASE, KERNEL_BASE, (uint64)KERNEL_DATA - KERNEL_BASE, PTE_R | PTE_X);
+    // 内核数据
+    vm_mappages(kernel_pgtbl, (uint64)KERNEL_DATA, (uint64)KERNEL_DATA, (uint64)ALLOC_BEGIN - (uint64)KERNEL_DATA, PTE_R | PTE_W);
+    // 可分配区域
+    vm_mappages(kernel_pgtbl, (uint64)ALLOC_BEGIN, (uint64)ALLOC_BEGIN, (uint64)ALLOC_END - (uint64)ALLOC_BEGIN, PTE_R | PTE_W);
 }
 
 // 每个CPU都需要调用, 从不使用页表切换到使用内核页表

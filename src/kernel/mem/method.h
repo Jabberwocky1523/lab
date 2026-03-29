@@ -14,3 +14,6 @@ void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit);
 void vm_print(pgtbl_t pgtbl);
 void kvm_init();
 void kvm_inithart();
+bool check_inkernel(uint64 p);
+
+void test_case_2();
