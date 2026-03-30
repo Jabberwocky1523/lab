@@ -12,10 +12,14 @@ static uint64 mscratch[NCPU][5];
 void timer_init()
 {
     // 获取当前cpuid
-    int hartid = r_tp();
+    int hartid = r_mhartid();
+
+    // 初始化 MTIME (QEMU 的 MTIME 初始值为 0，需要设置)
+    uint64 *mtime = (uint64 *)CLINT_MTIME;
+    *mtime = 0;
 
     // 设置初始值 cmp_time = cur_time + time_interval
-    *(uint64 *)CLINT_MTIMECMP(hartid) = *(uint64 *)CLINT_MTIME + INTERVAL;
+    *(uint64 *)CLINT_MTIMECMP(hartid) = *mtime + INTERVAL;
 
     // cur_mscratch 指向当前CPU的msrcatch数组
     uint64 *cur_mscratch = mscratch[hartid];

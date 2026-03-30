@@ -21,7 +21,7 @@
 #define CLINT_MTIME (CLINT_BASE + 0xBFF8)
 
 // 每隔INTERVAL个cycle发生一次时钟中断 (1e6个cycle大约为0.1s)
-#define INTERVAL 1000000
+#define INTERVAL 10000000
 
 // 计时器
 typedef struct timer

@@ -16,12 +16,12 @@ void start()
     w_tp(id);
 
     // 委托S-mode处理所有trap
-    //// 中断使能
-    w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
     //// 委托异常
     w_medeleg(0xffff);
     //// 委托终端
     w_mideleg(0xffff);
+    //// 中断使能
+    w_sie(r_sie() | SIE_SEIE | SIE_STIE | SIE_SSIE);
 
     // 时钟中断初始化 (唯一需要在M-mode处理的中断)
     timer_init();

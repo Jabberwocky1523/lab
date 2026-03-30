@@ -119,3 +119,5 @@ timer_vector:
         ld a1, 0(a0)
         # 交换a0和mscratch寄存器的内容以恢复原始状态
         csrrw a0, mscratch, a0
+
+        mret

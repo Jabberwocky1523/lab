@@ -2,6 +2,8 @@
 
 #include "mod.h"
 
+#define DEL 0x7f
+
 // from printf.c 终止输出的标志
 extern volatile int panicked;
 
@@ -42,13 +44,22 @@ void uart_putc_sync(int c)
     while ((ReadReg(LSR) & LSR_TX_IDLE) == 0)
         ;
     // 输出
-    WriteReg(THR, c);
 
     //  处理BackSpace
-    if (c == '\b')
+    if (c == DEL || c == '\b')
     {
+        WriteReg(THR, '\b');
         WriteReg(THR, ' ');
         WriteReg(THR, '\b');
+    }
+    else if (c == '\r' || c == '\n') // 处理回车换行
+    {
+        WriteReg(THR, '\r');
+        WriteReg(THR, '\n');
+    }
+    else
+    {
+        WriteReg(THR, c);
     }
 
     // 开启中断
@@ -72,7 +83,9 @@ void uart_intr(void)
     {
         int c = uart_getc_sync();
         if (c == -1)
+        {
             break;
+        }
         uart_putc_sync(c);
     }
 }
