@@ -18,7 +18,7 @@ ECNU-OSLAB-2025-TASK
         │   └── type.h (CHANGE, 新增一些RISC-V中断相关宏定义)
         ├── boot   机器启动
         │   ├── entry.S
-        │   └── start.c (TODO, 在M-mode多做一些事情再进入S-mode)
+        │   └── start.c (DONE, 在M-mode多做一些事情再进入S-mode)
         ├── lock   锁机制
         │   ├── spinlock.c
         │   ├── method.h
