@@ -21,7 +21,7 @@ static char *interrupt_info[16] = {
 };
 
 // 异常信息
-static char *exception_info[16] = {
+char *exception_info[16] = {
     "Instruction address misaligned", // 0
     "Instruction access fault",       // 1
     "Illegal instruction",            // 2

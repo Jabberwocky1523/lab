@@ -2,9 +2,9 @@
 #include "lib/mod.h"
 #include "mem/mod.h"
 #include "trap/mod.h"
-volatile static int started = 0;
+#include "proc/mod.h"
 
-volatile static int over_1 = 0, over_2 = 0;
+volatile static int started = 0;
 
 int main()
 {
@@ -14,12 +14,14 @@ int main()
     {
 
         print_init();
+        printf("cpu %d is booting!\n", cpuid);
+
         pmem_init();
         kvm_init();
         kvm_inithart();
-        printf("cpu %d is booting!\n", cpuid);
         trap_kernel_init();
         trap_kernel_inithart();
+        proc_make_first();
         __sync_synchronize();
         started = 1;
     }
@@ -28,9 +30,10 @@ int main()
 
         while (started == 0)
             ;
-        printf("cpu %d is booting!\n", cpuid);
-        trap_kernel_inithart();
         __sync_synchronize();
+        printf("cpu %d is booting!\n", cpuid);
+        kvm_inithart();
+        trap_kernel_inithart();
     }
     while (1)
         ;
