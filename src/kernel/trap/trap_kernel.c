@@ -1,7 +1,7 @@
 #include "mod.h"
 
 // 中断信息
-static char *interrupt_info[16] = {
+char *interrupt_info[16] = {
     "U-mode software interrupt", // 0
     "S-mode software interrupt", // 1
     "reserved-1",                // 2
