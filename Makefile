@@ -1,4 +1,5 @@
 # 引入通用配置文件
+# 引入通用配置文件
 include common.mk
 
 # 配置CPU核心数量
@@ -53,6 +54,7 @@ ifeq ($(wildcard $(TARGET)),)
 	@mkdir -p $(TARGET)/kernel/mem
 	@mkdir -p $(TARGET)/kernel/trap
 	@mkdir -p $(TARGET)/kernel/proc
+	@mkdir -p $(TARGET)/kernel/syscall
 	@mkdir -p $(TARGET)/user
 endif
 
