@@ -17,6 +17,7 @@ int main()
         printf("cpu %d is booting!\n", cpuid);
 
         pmem_init();
+        mmap_init();
         kvm_init();
         kvm_inithart();
         trap_kernel_init();

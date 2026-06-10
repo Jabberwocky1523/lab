@@ -61,30 +61,42 @@ void trap_user_handler()
         {
         case 8: // Environment call from U-mode (系统调用)
         {
-            // 系统调用号在 a7 寄存器中
-            int syscall_num = p->tf->a7;
             // sepc指向ecall指令, 返回时应跳到下一条指令
             p->tf->user_to_kern_epc += 4;
 
-            if (syscall_num == SYS_helloworld)
-            {
-                printf("helloworld!\n");
-                p->tf->a0 = 0; // 返回值=0表示成功
-            }
-            else
-            {
-                printf("unknown syscall: %d\n", syscall_num);
-                p->tf->a0 = -1; // 返回值=-1表示错误
-            }
+            // 调用系统调用分发器
+            syscall();
             break;
         }
         case 12: // Instruction page fault
         case 13: // Load page fault
         case 15: // Store/AMO page fault
+        {
+            uint64 fault_addr = r_stval();
+
             printf("\npage fault in user mode: %s\n", exception_info[trap_id]);
-            printf("  sepc = %p, stval = %p\n", sepc, r_stval());
+            printf("  sepc = %p, stval = %p\n", sepc, fault_addr);
+            printf("  ustack_npage = %d, cur_stack_bottom = %p\n",
+                   (int)p->ustack_npage, (void *)(TRAPFRAME - p->ustack_npage * PGSIZE));
+
+            // 尝试栈自动扩展 (仅对 load/store page fault)
+            if (trap_id == 13 || trap_id == 15)
+            {
+                uint64 new_npage = uvm_ustack_grow(p->pgtbl, p->ustack_npage, fault_addr);
+                if (new_npage != (uint64)-1)
+                {
+                    printf("  ustack grown: %d -> %d pages\n",
+                           (int)p->ustack_npage, (int)new_npage);
+                    p->ustack_npage = new_npage;
+                    // 栈扩展成功, 返回用户态重试该指令
+                    break;
+                }
+                printf("  ustack grow failed\n");
+            }
+
             panic("trap_user_handler: page fault");
             break;
+        }
         default:
             printf("\nunexpected user exception: %s\n", exception_info[trap_id]);
             printf("  trap_id = %d, sepc = %p, stval = %p\n", trap_id, sepc, r_stval());

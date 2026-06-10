@@ -58,6 +58,9 @@ void proc_make_first()
 {
     proc_t *p = &proczero;
 
+    // 0. 初始化 mmap 链表为空(必须在任何可能 panic 之前)
+    p->mmap = NULL;
+
     // 1. 分配trapframe页面 (内核内存)
     p->tf = (trapframe_t *)pmem_alloc(true);
     memset(p->tf, 0, PGSIZE);
