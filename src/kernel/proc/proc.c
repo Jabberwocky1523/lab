@@ -231,7 +231,7 @@ void proc_make_first()
 	// 分配用户栈 (4页, 用户内存, 位于trapframe下方)
 	// 测试用例需要在栈上分配较大的数组
 	p->ustack_npage = 4;
-	uint64 ustack_va = TRAPFRAME - PGSIZE;       // 栈在trapframe紧下方
+	uint64 ustack_va = TRAPFRAME - PGSIZE; // 栈在trapframe紧下方
 	for (int i = 0; i < 4; i++)
 	{
 		uint64 ustack_pa = (uint64)pmem_alloc(false); // 用户物理内存
@@ -364,7 +364,7 @@ static void proc_try_wakeup(proc_t *p)
 		if (parent->sleep_space == parent && parent->state == SLEEPING)
 		{
 			parent->state = RUNNABLE;
-			printf("proc %d is wakeup!\n", parent->pid);
+			// printf("proc %d is wakeup!\n", parent->pid);
 		}
 	}
 }
@@ -485,7 +485,7 @@ void proc_sleep(void *sleep_space, spinlock_t *lock)
 	// 进入睡眠
 	p->sleep_space = sleep_space;
 	p->state = SLEEPING;
-	printf("proc %d is sleeping!\n", p->pid);
+	// printf("proc %d is sleeping!\n", p->pid);
 
 	proc_sched();
 
@@ -512,7 +512,7 @@ void proc_wakeup(void *sleep_space)
 		if (p->state == SLEEPING && p->sleep_space == sleep_space)
 		{
 			p->state = RUNNABLE;
-			printf("proc %d is wakeup!\n", p->pid);
+			// printf("proc %d is wakeup!\n", p->pid);
 		}
 		spinlock_release(&p->lk);
 	}
@@ -562,7 +562,7 @@ void proc_scheduler()
 				// 选择该进程运行
 				p->state = RUNNING;
 				c->proc = p;
-				printf("proc %d is running...\n", p->pid);
+				// printf("proc %d is running...\n", p->pid);
 				swtch(&c->ctx, &p->ctx);
 
 				// 进程已经通过proc_sched切回调度器
