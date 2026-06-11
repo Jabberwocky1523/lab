@@ -60,6 +60,7 @@ void timer_update()
 {
     spinlock_acquire(&sys_timer.lk);
     sys_timer.ticks++;
+    proc_wakeup(&sys_timer);
     spinlock_release(&sys_timer.lk);
 }
 
@@ -67,4 +68,19 @@ void timer_update()
 uint64 timer_get_ticks()
 {
     return sys_timer.ticks;
+}
+// 让进程睡眠ntick个时钟周期
+void timer_wait(uint64 ntick)
+{
+	spinlock_acquire(&sys_timer.lk);
+	uint64 target = sys_timer.ticks + ntick;
+
+	while (timer_get_ticks() < target)
+	{
+		// 以sys_timer为资源进入睡眠
+		// proc_sleep会释放sys_timer.lk, 并在返回时重新获取
+		// 当时钟中断发生时, timer_update会唤醒等待该资源的进程
+		proc_sleep(&sys_timer, &sys_timer.lk);
+	}
+	spinlock_release(&sys_timer.lk);
 }

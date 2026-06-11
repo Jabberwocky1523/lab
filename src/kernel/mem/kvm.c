@@ -121,9 +121,12 @@ void kvm_init()
     vm_mappages(kernel_pgtbl, (uint64)ALLOC_BEGIN, (uint64)ALLOC_BEGIN, (uint64)ALLOC_END - (uint64)ALLOC_BEGIN, PTE_R | PTE_W);
     // trampoline页: 内核<->用户切换的公共代码 (映射到最高虚拟地址处)
     vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-    // 进程0的内核栈: 分配物理页并映射到 KSTACK(0)
-    uint64 kstack0_pa = (uint64)pmem_alloc(true);
-    vm_mappages(kernel_pgtbl, KSTACK(0), kstack0_pa, PGSIZE, PTE_R | PTE_W);
+    // 为所有可能的进程分配内核栈物理页并映射
+    for (int i = 0; i < N_PROC; i++)
+    {
+        uint64 kstack_pa = (uint64)pmem_alloc(true);
+        vm_mappages(kernel_pgtbl, KSTACK(i), kstack_pa, PGSIZE, PTE_R | PTE_W);
+    }
 
 }
 

@@ -90,6 +90,9 @@ void trap_kernel_handler()
         {
         case 1:
             timer_interrupt_handler();
+            // 时钟中断: 如果当前有进程在运行, 放弃CPU使用权
+            if (myproc() != NULL && myproc()->state == RUNNING)
+                proc_yield();
             break;
         case 9:
             external_interrupt_handler();
@@ -111,6 +114,9 @@ void trap_kernel_handler()
             panic("trap_kernel_handler");
         }
     }
+    // yield()可能会修改sepc和sstatus, 恢复它们供trap.S中的sret使用
+    w_sepc(sepc);
+    w_sstatus(sstatus);
 }
 
 // 外设中断处理 (基于PLIC，lab-3只需要识别和处理UART中断)

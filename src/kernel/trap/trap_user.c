@@ -32,10 +32,11 @@ void trap_user_handler()
     // 切换到内核态trap处理向量 (在内核中发生的trap应由kernel_vector处理)
     w_stvec((uint64)kernel_vector);
 
+    int trap_id = scause & 0xf;
+
     if (scause & 0x8000000000000000ul)
     {
         // 1. 中断处理
-        int trap_id = scause & 0xf;
         switch (trap_id)
         {
         case 1: // S-mode software interrupt (来自M-mode的时钟中断)
@@ -56,7 +57,6 @@ void trap_user_handler()
     else
     {
         // 2. 异常处理
-        int trap_id = scause & 0xf;
         switch (trap_id)
         {
         case 8: // Environment call from U-mode (系统调用)
@@ -103,6 +103,10 @@ void trap_user_handler()
             panic("trap_user_handler: unexpected exception");
         }
     }
+
+    // 如果是时钟中断, 当前进程放弃CPU使用权
+    if ((scause & 0x8000000000000000ul) && (trap_id == 1 || trap_id == 5))
+        proc_yield();
 
     // 处理完毕, 返回用户态
     trap_user_return();

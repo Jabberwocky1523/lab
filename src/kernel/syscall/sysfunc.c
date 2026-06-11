@@ -1,71 +1,5 @@
 #include "mod.h"
 
-#define INT_ARRAY_LEN 5
-
-/*
-    测试: 从用户空间传入一个int类型的数组
-    uint64 addr 数组起始地址
-    uint32 len  元素数量
-    成功返回0
-*/
-uint64 sys_copyin()
-{
-    proc_t *p = myproc();
-    uint64 addr;
-    uint32 len;
-    arg_uint64(0, &addr);
-    arg_uint32(1, &len);
-
-    int arr[INT_ARRAY_LEN];
-    if (len > INT_ARRAY_LEN)
-        return -1;
-
-    uvm_copyin(p->pgtbl, (uint64)arr, addr, len * sizeof(int));
-
-    printf("sys_copyin: received array from user: ");
-    for (uint32 i = 0; i < len; i++)
-        printf("%d ", arr[i]);
-    printf("\n");
-
-    return 0;
-}
-
-/*
-    测试: 向用户空间传出一个int类型的数组
-    uint64 addr 数组起始地址
-    成功返回拷贝的元素数量
-*/
-uint64 sys_copyout()
-{
-    proc_t *p = myproc();
-    uint64 addr;
-    arg_uint64(0, &addr);
-
-    int arr[INT_ARRAY_LEN] = {1, 2, 3, 4, 5};
-    uvm_copyout(p->pgtbl, addr, (uint64)arr, INT_ARRAY_LEN * sizeof(int));
-
-    printf("sys_copyout: sent array to user at %p\n", (void *)addr);
-    return INT_ARRAY_LEN;
-}
-
-/*
-    测试: 从用户空间传入一个字符串
-    uint64 addr 字符串起始地址
-    成功返回0
-*/
-uint64 sys_copyinstr()
-{
-    proc_t *p = myproc();
-    uint64 addr;
-    arg_uint64(0, &addr);
-
-    char buf[STR_MAXLEN + 1];
-    uvm_copyin_str(p->pgtbl, (uint64)buf, addr, STR_MAXLEN);
-
-    printf("sys_copyinstr: received string from user: \"%s\"\n", buf);
-    return 0;
-}
-
 /*
     用户堆空间伸缩
     uint64 new_heap_top (如果是0, 代表查询当前堆顶位置)
@@ -188,4 +122,84 @@ uint64 sys_munmap()
     printf("\n");
 
     return 0;
+}
+
+/*
+    打印一个字符串
+    char *str
+    成功返回0
+*/
+uint64 sys_print_str()
+{
+	char buf[STR_MAXLEN + 1];
+	arg_str(0, buf, STR_MAXLEN);
+	printf("%s", buf);
+	return 0;
+}
+
+/*
+    打印一个32位整数
+    int num
+    成功返回0
+*/
+uint64 sys_print_int()
+{
+	int num;
+	arg_uint32(0, (uint32 *)&num);
+	printf("%d", num);
+	return 0;
+}
+
+/*
+    进程复制
+    返回子进程的pid
+*/
+uint64 sys_fork()
+{
+	return proc_fork();
+}
+
+/*
+    等待子进程退出
+    uint64 addr_exit_state
+*/
+uint64 sys_wait()
+{
+	uint64 addr;
+	arg_uint64(0, &addr);
+	return proc_wait(addr);
+}
+
+/*
+    进程退出
+    int exit_code
+    不返回
+*/
+uint64 sys_exit()
+{
+	int exit_code;
+	arg_uint32(0, (uint32 *)&exit_code);
+	proc_exit(exit_code);
+	return 0; // never reached
+}
+
+/*
+    让进程睡眠一段时间
+    uint32 ntick (1个tick大约0.1秒)
+    成功返回0
+*/
+uint64 sys_sleep()
+{
+	uint32 ntick;
+	arg_uint32(0, &ntick);
+	timer_wait(ntick);
+	return 0;
+}
+
+/*
+    返回当前进程的pid
+*/
+uint64 sys_getpid()
+{
+	return myproc()->pid;
 }
