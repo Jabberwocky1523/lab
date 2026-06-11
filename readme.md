@@ -537,3 +537,56 @@ int main()
 在lab-8中, 我们要用inode将block组织起来并构建层次化的数据存储系统
 
 我们即将进入真正的文件系统逻辑, 请你做好准备迎接新的挑战!
+
+---
+
+## LAB-7 实现总结
+
+### 修改文件清单
+
+| 文件 | 修改内容 |
+|------|----------|
+| `src/kernel/mem/kvm.c` | 移除 `kernel_pgtbl` 的 `static` 修饰符；在 `kvm_init()` 中添加 VIRTIO MMIO 地址映射；在 `vm_getpte()` 中处理 `pgtbl==NULL` 时使用内核页表 |
+| `src/kernel/mem/method.h` | 添加 `extern pgtbl_t kernel_pgtbl;` 声明 |
+| `src/kernel/fs/mod.h` | 添加 `#include "../mem/mod.h"` 使 virtio 驱动能访问 `vm_getpte` |
+| `src/kernel/trap/plic.c` | `plic_init()` 中添加 VIRTIO_IRQ 优先级设置；`plic_inithart()` 中添加 VIRTIO_IRQ 使能 |
+| `src/kernel/trap/trap_kernel.c` | `external_interrupt_handler()` 中添加 `virtio_disk_intr()` 调用分支 |
+| `src/kernel/proc/proc.c` | `proc_return()` 中调用 `fs_init()`（仅首次）；用户栈从 1 页扩展到 4 页以支持测试用例的大数组 |
+| `src/kernel/fs/fs.c` | 实现 `fs_init()`：初始化缓冲系统 → 读入超级块 → 验证魔数 → 输出磁盘布局 |
+| `src/kernel/fs/buf.c` | 实现全部缓冲区管理函数：`buffer_init`、`buffer_read`、`buffer_write`、`buffer_get`（LRU 算法）、`buffer_put`、`buffer_freemem` |
+| `src/kernel/fs/bitmap.c` | 实现全部位图操作：`bitmap_search_and_set`、`bitmap_clear`、`bitmap_alloc_block`、`bitmap_alloc_inode`、`bitmap_free_block`、`bitmap_free_inode` |
+| `src/kernel/syscall/syscall.c` | 跳转表中新增 11 个系统调用条目（SYS_alloc_block ~ SYS_flush_buffer） |
+| `src/kernel/syscall/sysfunc.c` | 实现 11 个新系统调用的服务函数 |
+| `src/kernel/fs/type.h` | `N_BUFFER` 改为 `N_BUFFER_TEST`（测试模式） |
+| `src/user/initcode.c` | 完成三个测试用例（test-1 默认激活，test-2/test-3 注释备用） |
+| `Makefile` | 添加 `FORCE` 伪目标使 `disk.img` 每次构建时重新生成 |
+
+### 关键设计决策
+
+1. **vm_getpte 处理 NULL 页表**：当 `pgtbl == NULL` 时自动使用内核页表 `kernel_pgtbl`，这允许 `virtio_disk_rw` 通过 `vm_getpte(NULL, addr, false)` 将内核栈上的虚拟地址翻译为物理地址，用于 DMA 描述符。
+
+2. **LRU 缓冲管理**：采用双链表设计——活跃链表（ref > 0）和非活跃链表（ref == 0）。
+   - **缓存命中（活跃链表）**：移动到活跃链表头部（最活跃位置）
+   - **缓存命中（非活跃链表）**：移动到活跃链表头部，若数据页被释放则重新读取
+   - **缓存未命中**：取非活跃链表尾部（最不活跃），移动到活跃链表尾部
+
+3. **fs_init 调用时机**：在 `proc_return()` 中首次被调度时调用（而非 `main()` 中），因为磁盘 I/O 需要进程上下文支持 `proc_sleep`/`proc_wakeup`。调用前先释放进程锁以避免死锁。
+
+4. **位图管理**：基于 buffer 层实现，每次修改后调用 `buffer_write` 同步到磁盘。`bitmap_search_and_set` 采用逐字节遍历 + 位运算，支持最后一个块的部分有效范围。
+
+### 测试结果验证
+
+**test-1（超级块读取）**：成功输出磁盘布局信息，验证了缓冲系统和磁盘驱动的基本能力。
+
+**test-2（位图操作）**：
+- 分配 20 个 data block → 位图显示 1067~1086 ✓
+- 释放偶数索引 10 个 → 位图显示剩余 10 个 ✓
+- 释放奇数索引 10 个 → 位图为空 ✓
+- 分配 20 个 inode → 位图显示 0~19 ✓
+- 释放全部 20 个 inode → 位图为空 ✓
+
+**test-3（缓冲区 LRU）**：
+- 写入 "ABCDEFGH\n" 到 block 5000 → 刷新 → 读回 → 数据一致 ✓
+- GET 五个不同 block → 活跃链表正确反映 LRU 顺序 ✓
+- PUT 三个 buffer → 非活跃链表正确反映释放顺序 ✓
+- FLUSH 3 → 非活跃链表尾部 3 个 buffer 的数据页被释放 ✓

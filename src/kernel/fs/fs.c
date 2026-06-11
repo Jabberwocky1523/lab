@@ -22,4 +22,18 @@ static void sb_print()
 /* 文件系统初始化 */
 void fs_init()
 {
+    // 初始化缓冲系统
+    buffer_init();
+
+    // 读入超级块
+    buffer_t *buf = buffer_get(FS_SB_BLOCK);
+    memmove(&sb, buf->data, sizeof(sb));
+    buffer_put(buf);
+
+    // 验证魔数
+    if (sb.magic_num != FS_MAGIC)
+        panic("fs_init: invalid file system magic");
+
+    // 输出磁盘布局信息
+    sb_print();
 }

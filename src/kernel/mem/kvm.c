@@ -1,7 +1,7 @@
 #include "mod.h"
 
 // 内核页表
-static pgtbl_t kernel_pgtbl;
+pgtbl_t kernel_pgtbl;
 
 // in trampoline.S
 extern char trampoline[];
@@ -16,6 +16,11 @@ pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc)
     {
         panic("当前va超过va_max!");
     }
+
+    // 如果pgtbl为NULL, 使用内核页表
+    if (pgtbl == NULL)
+        pgtbl = kernel_pgtbl;
+
     int lev = 2;
     while (lev != 0)
     {
@@ -113,6 +118,8 @@ void kvm_init()
     vm_mappages(kernel_pgtbl, CLINT_BASE, CLINT_BASE, 0x10000, PTE_R | PTE_W);
     // PLIC
     vm_mappages(kernel_pgtbl, PLIC_BASE, PLIC_BASE, 0x400000, PTE_R | PTE_W);
+    // VIRTIO (磁盘MMIO)
+    vm_mappages(kernel_pgtbl, VIRTIO_BASE, VIRTIO_BASE, PGSIZE, PTE_R | PTE_W);
     // 内核代码
     vm_mappages(kernel_pgtbl, KERNEL_BASE, KERNEL_BASE, (uint64)KERNEL_DATA - KERNEL_BASE, PTE_R | PTE_X);
     // 内核数据

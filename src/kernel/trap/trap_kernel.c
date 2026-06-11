@@ -125,6 +125,8 @@ void external_interrupt_handler()
     int plic = plic_claim();
     if (plic == UART_IRQ)
         uart_intr();
+    else if (plic == VIRTIO_IRQ)
+        virtio_disk_intr();
     if (plic)
         plic_complete(plic);
 }

@@ -38,7 +38,17 @@ static int alloc_pid()
 static void proc_return()
 {
 	proc_t *p = myproc();
+	static bool fs_inited = false;
+
+	// 先释放进程锁, 因为fs_init中可能触发proc_sleep
 	spinlock_release(&p->lk);
+
+	if (!fs_inited)
+	{
+		fs_init();
+		fs_inited = true;
+	}
+
 	trap_user_return();
 }
 
@@ -218,11 +228,16 @@ void proc_make_first()
 	assert(p != NULL, "proc_make_first: proc_alloc failed");
 	proczero = p;
 
-	// 分配用户栈 (1页, 用户内存, 位于trapframe下方)
-	p->ustack_npage = 1;
-	uint64 ustack_pa = (uint64)pmem_alloc(false); // 用户物理内存
+	// 分配用户栈 (4页, 用户内存, 位于trapframe下方)
+	// 测试用例需要在栈上分配较大的数组
+	p->ustack_npage = 4;
 	uint64 ustack_va = TRAPFRAME - PGSIZE;       // 栈在trapframe紧下方
-	vm_mappages(p->pgtbl, ustack_va, ustack_pa, PGSIZE, PTE_R | PTE_W | PTE_U);
+	for (int i = 0; i < 4; i++)
+	{
+		uint64 ustack_pa = (uint64)pmem_alloc(false); // 用户物理内存
+		uint64 va = TRAPFRAME - (i + 1) * PGSIZE;
+		vm_mappages(p->pgtbl, va, ustack_pa, PGSIZE, PTE_R | PTE_W | PTE_U);
+	}
 
 	// 加载initcode到用户空间 USER_BASE处
 	uint64 code_pa = (uint64)pmem_alloc(false); // 用户物理内存

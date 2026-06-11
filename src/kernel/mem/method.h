@@ -9,6 +9,8 @@ void pmem_free(uint64 page, bool in_kernel);
 
 /* kvm.c: 内核态虚拟内存管理 + 页表通用函数 */
 
+extern pgtbl_t kernel_pgtbl;
+
 pte_t *vm_getpte(pgtbl_t pgtbl, uint64 va, bool alloc);
 void vm_mappages(pgtbl_t pgtbl, uint64 va, uint64 pa, uint64 len, int perm);
 void vm_unmappages(pgtbl_t pgtbl, uint64 va, uint64 len, bool freeit);
