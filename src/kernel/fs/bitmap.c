@@ -119,6 +119,9 @@ void bitmap_free_block(uint32 block_num)
     uint32 bitmap_block_num = sb.data_bitmap_firstblock + bitmap_block_offset;
 
     bitmap_clear(bitmap_block_num, bit_in_block);
+
+    /* 清除buffer cache中该block的旧数据, 防止重新分配时读到脏数据 */
+    buffer_invalidate(block_num);
 }
 
 /* 释放一个inode, 将inode_bitmap对应bit设为0 */
