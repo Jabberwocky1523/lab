@@ -77,7 +77,7 @@ void test2()
 {
     printf("============= test begin =============\n\n");
 
-    inode_t *ip_1, *ip_2;
+    inode_t *ip_2;
     uint32 len, cut_len;
 
     /* 小批量读写测试 */
@@ -86,7 +86,7 @@ void test2()
     // for (int i = 0; i < 10; i++)
     //     small_src[i] = i;
 
-    ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+    // ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
     // inode_lock(ip_1);
     // inode_print(ip_1, "small_data");
 
@@ -141,8 +141,7 @@ void test2()
         assert(len == cut_len, "write fail 2!");
     }
     inode_print(ip_2, "big_data");
-
-    len = inode_read_data(ip_1, cut_len * 10000 - 8, 8, big_dst, false);
+    len = inode_read_data(ip_2, cut_len * 10000 - 8, 8, big_dst, false);
     assert(len == 8, "read fail 2");
     printf("read data: %s\n", big_dst);
 
