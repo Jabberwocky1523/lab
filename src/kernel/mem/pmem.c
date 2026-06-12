@@ -54,6 +54,7 @@ void *pmem_alloc(bool in_kernel)
         kern_region.list_head.next = kern_region.list_head.next->next;
         kern_region.allocable--;
         memset(page, (uint8)0, PGSIZE);
+        // printf("%d\n", kern_region.allocable);
         rekern;
     }
     else

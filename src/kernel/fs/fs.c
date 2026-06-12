@@ -117,10 +117,10 @@ void test2()
 
     /* 申请五个连续物理页面 (初始化阶段, 通常来说能拿到连续的) */
     big_src = pmem_alloc(true);
-    assert(pmem_alloc(true) == big_src + PGSIZE, "contiguous fail!");
-    assert(pmem_alloc(true) == big_src + PGSIZE * 2, "contiguous fail!");
-    assert(pmem_alloc(true) == big_src + PGSIZE * 3, "contiguous fail!");
-    assert(pmem_alloc(true) == big_src + PGSIZE * 4, "contiguous fail!");
+    assert(pmem_alloc(true) == big_src - PGSIZE, "contiguous fail!");
+    assert(pmem_alloc(true) == big_src - PGSIZE * 2, "contiguous fail!");
+    assert(pmem_alloc(true) == big_src - PGSIZE * 3, "contiguous fail!");
+    assert(pmem_alloc(true) == big_src - PGSIZE * 4, "contiguous fail!");
 
     for (uint32 i = 0; i < 5 * (PGSIZE / 8); i++)
         for (uint32 j = 0; j < 8; j++)
@@ -134,6 +134,7 @@ void test2()
     cut_len = PGSIZE * 4 + 1110;
     for (uint32 offset = 0; offset < cut_len * 10000; offset += cut_len)
     {
+        printf("%d\n", offset / cut_len);
         len = inode_write_data(ip_2, offset, cut_len, big_src, false);
         assert(len == cut_len, "write fail 2!");
     }
@@ -148,10 +149,10 @@ void test2()
     inode_put(ip_2);
 
     pmem_free((uint64)big_src, true);
-    pmem_free((uint64)big_src + PGSIZE, true);
-    pmem_free((uint64)big_src + PGSIZE * 2, true);
-    pmem_free((uint64)big_src + PGSIZE * 3, true);
-    pmem_free((uint64)big_src + PGSIZE * 4, true);
+    pmem_free((uint64)big_src - PGSIZE, true);
+    pmem_free((uint64)big_src - PGSIZE * 2, true);
+    pmem_free((uint64)big_src - PGSIZE * 3, true);
+    pmem_free((uint64)big_src - PGSIZE * 4, true);
 
     printf("============= test end =============\n");
 }

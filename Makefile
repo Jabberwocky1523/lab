@@ -2,7 +2,7 @@
 include common.mk
 
 # 配置CPU核心数量
-CPUNUM = 2
+CPUNUM = 1
 # 定义目标文件输出目录
 TARGET = target
 # 定义各模块路径
