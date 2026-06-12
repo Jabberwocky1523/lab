@@ -93,41 +93,6 @@ void buffer_write(buffer_t *buf)
     virtio_disk_rw(buf, true);
 }
 
-/*
-    将某个block_num对应的buffer data清零 (用于block被释放后防止旧数据被重用)
-    只在buffer cache中操作, 不触发磁盘I/O
-*/
-void buffer_invalidate(uint32 block_num)
-{
-    buffer_node_t *node;
-
-    spinlock_acquire(&lk_buf_cache);
-
-    /* 在活跃链表中查找 */
-    for (node = buf_head_active.next; node != &buf_head_active; node = node->next)
-    {
-        if (node->buf.block_num == block_num && node->buf.data != NULL)
-        {
-            memset(node->buf.data, 0, BLOCK_SIZE);
-            spinlock_release(&lk_buf_cache);
-            return;
-        }
-    }
-
-    /* 在非活跃链表中查找 */
-    for (node = buf_head_inactive.next; node != &buf_head_inactive; node = node->next)
-    {
-        if (node->buf.block_num == block_num && node->buf.data != NULL)
-        {
-            memset(node->buf.data, 0, BLOCK_SIZE);
-            spinlock_release(&lk_buf_cache);
-            return;
-        }
-    }
-
-    spinlock_release(&lk_buf_cache);
-}
-
 /* 从buf_cache中获取一个buf */
 buffer_t *buffer_get(uint32 block_num)
 {

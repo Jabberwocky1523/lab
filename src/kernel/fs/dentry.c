@@ -65,9 +65,15 @@ uint32 dentry_create(inode_t *ip, uint32 inode_num, char *name)
     if (dentry_search(ip, name) != INVALID_INODE_NUM)
         return (uint32)-1;
 
-    /* 确保index[0]存在 (bitmap_alloc_block已负责清零新块) */
+    /* 确保index[0]存在并清零 (buffer cache可能残留已释放块的旧数据) */
     if (ip->disk_info.index[0] == 0)
+    {
         ip->disk_info.index[0] = bitmap_alloc_block();
+        buffer_t *clr = buffer_get(ip->disk_info.index[0]);
+        memset(clr->data, 0, BLOCK_SIZE);
+        buffer_write(clr);
+        buffer_put(clr);
+    }
 
     buffer_t *buf = buffer_get(ip->disk_info.index[0]);
     dentry_t *de = (dentry_t *)buf->data;

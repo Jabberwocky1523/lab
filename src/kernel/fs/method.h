@@ -12,7 +12,6 @@ void buffer_init();
 buffer_t *buffer_get(uint32 block_num);
 void buffer_put(buffer_t *buf);
 void buffer_write(buffer_t *buf);
-void buffer_invalidate(uint32 block_num);
 uint32 buffer_freemem(uint32 buffer_count);
 void buffer_print_info();
 

@@ -692,21 +692,19 @@ typedef struct dentry {
   - `find_parent_inode=true` → 返回父目录 inode + 文件名
 - `path_to_inode(path)` / `path_to_parent_inode(path, name)` — 对外接口
 
-#### 3. `src/kernel/fs/fs.c` — 文件系统初始化 + 测试用例
+#### 3. `src/kernel/fs/fs.c` — 文件系统初始化
 
-- `fs_init()` 中添加 `inode_init()` 调用
-- 末尾依次运行 4 个测试用例
+- `fs_init()` 中添加 `inode_init()` 调用 (初始化 inode_cache)
 
-### 额外修复
+### 实现中的关键设计点
 
-| 文件 | 问题 | 修复 |
-|------|------|------|
-| `src/kernel/fs/buf.c` | 块释放后被重新分配时，buffer cache 残留旧数据 | 新增 `buffer_invalidate(block_num)` 函数，遍历活跃/非活跃链表清零匹配 buffer |
-| `src/kernel/fs/method.h` | 缺少声明 | 添加 `buffer_invalidate()` 函数声明 |
-| `src/kernel/fs/bitmap.c` | `bitmap_free_block()` 不清理缓存 | 调用 `buffer_invalidate(block_num)` 防止脏数据复用 |
-| `src/mkfs/mkfs.h` | `false`/`true` 枚举与 GCC C23 关键字冲突 | 替换为 `#include <stdbool.h>` |
-| `src/kernel/fs/fs.c` 测试4 | `inode_write_data` 后缺少 `inode_rw(ip_3, true)` 同步 | 补充 `inode_rw(ip_3, true)` 确保持久化 |
-| `src/kernel/fs/fs.c` 测试2 | `pmem_alloc` 使用 LIFO 空闲链表，连续分配返回降序地址 | 分配 5 页到临时数组，验证连续性后取最低地址作为 `big_src` 基址 |
+**缓冲区旧数据清零**（在 `dentry.c` 中处理）：块被 `bitmap_free_block` 释放后重新分配时，buffer cache 可能残留旧数据。在 `dentry_create` 为新目录分配 `index[0]` 块时通过 `buffer_get` + `memset` + `buffer_write` + `buffer_put` 显式清零。
+
+**LIFO 连续分配适配**（在 `fs.c` 测试2中处理）：`pmem_alloc` 使用 LIFO 空闲链表，连续 5 次分配返回降序地址。先分配到临时数组 `pages[5]` 验证连续性 (`pages[i] == pages[0] - i*PGSIZE`)，再取最低地址 `pages[4]` 作为 `big_src` 基址。
+
+**inode 写同步**（在 `fs.c` 测试4中处理）：`inode_write_data` 只修改内存中的 `disk_info`，测试 4 中补充 `inode_rw(ip_3, true)` 将 file.txt 的 size/index 变更同步到磁盘，确保后续 `path_to_inode` 重新获取时读到最新数据。
+
+**mkfs C23 兼容**（在 `mkfs.h` 中处理）：将自定义 `typedef enum { false, true } bool` 替换为 `#include <stdbool.h>`，解决新版 GCC 的 `false`/`true` 关键字冲突。
 
 ### 测试结果
 
