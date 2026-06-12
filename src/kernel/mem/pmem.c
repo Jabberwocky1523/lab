@@ -180,3 +180,7 @@ void test_case_2()
 
     printf("test_case_2 passed!\n");
 }
+// 获取可用内存信息
+void pmem_stat(uint32 *free_pages_in_kernel, uint32 *free_pages_in_user)
+{
+}

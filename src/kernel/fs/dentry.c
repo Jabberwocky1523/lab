@@ -312,3 +312,36 @@ inode_t *path_to_parent_inode(char *path, char *name)
 {
     return __path_to_inode(path, name, true);
 }
+/*
+    将inode对应的完整路径填入path中(缓冲区长度为len)
+    成功返回偏移量(从path+offset开始有效), 失败返回-1
+*/
+uint32 inode_to_path(inode_t *ip, char *path, uint32 len)
+{
+}
+
+/*
+    基于path创建新的inode
+    成功返回inode, 失败返回NULL
+*/
+inode_t *path_create_inode(char *path, uint16 type, uint16 major, uint16 minor)
+{
+}
+
+/*
+    构建文件硬链接 (new_path 指向 old_path 指向的 inode)
+    核心操作包括 nlink++ 和 dentry_create()
+    注意: old_path指向的inode不能是目录类型的
+    成功返回0, 失败返回-1
+*/
+uint32 path_link(char *old_path, char *new_path)
+{
+}
+
+/*
+    解除文件硬链接
+    成功返回0, 失败返回-1
+*/
+uint32 path_unlink(char *path)
+{
+}
