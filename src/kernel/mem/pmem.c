@@ -47,7 +47,9 @@ void *pmem_alloc(bool in_kernel)
     {
         if (!kern_region.allocable)
         {
-            panic("alloc kernelmem error!");
+            buffer_invalidate(N_BUFFER);
+            if (!kern_region.allocable)
+                panic("alloc kernelmem error!");
         }
         ackern;
         page = kern_region.list_head.next;

@@ -86,11 +86,9 @@ $(ELFUser): $(UserOBJ)
 	xxd -i $(TARGET)/user/initcode > $(UserPath)/initcode.h
 
 # 生成disk.img
-$(DISKIMG): FORCE
+$(DISKIMG):
 	gcc -Werror -Wall -I. -o $(TARGET)/mkfs/mkfs $(MKFSPath)/mkfs.c
 	$(TARGET)/mkfs/mkfs $(DISKIMG)
-
-FORCE:
 
 # 构建目标：创建输出目录、编译用户程序、编译内核、生成磁盘映像
 build: $(TARGET) $(ELFUser) $(ELFKernel) $(DISKIMG)

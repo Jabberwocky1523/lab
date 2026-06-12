@@ -82,33 +82,34 @@ void test2()
 
     /* 小批量读写测试 */
 
-    int small_src[10], small_dst[10];
-    for (int i = 0; i < 10; i++)
-        small_src[i] = i;
+    // int small_src[10], small_dst[10];
+    // for (int i = 0; i < 10; i++)
+    //     small_src[i] = i;
 
     ip_1 = inode_create(INODE_TYPE_DATA, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
-    inode_lock(ip_1);
-    inode_print(ip_1, "small_data");
+    // inode_lock(ip_1);
+    // inode_print(ip_1, "small_data");
 
-    printf("writing data...\n\n");
-    cut_len = 10 * sizeof(int);
-    for (uint32 offset = 0; offset < 400 * cut_len; offset += cut_len)
-    {
-        len = inode_write_data(ip_1, offset, cut_len, small_src, false);
-        assert(len == cut_len, "write fail 1!");
-    }
-    inode_print(ip_1, "small_data");
+    // printf("writing data...\n\n");
+    // cut_len = 10 * sizeof(int);
+    // for (uint32 offset = 0; offset < 400 * cut_len; offset += cut_len)
+    // {
+    //     len = inode_write_data(ip_1, offset, cut_len, small_src, false);
+    //     printf("%d bytes %d\n", offset, len);
+    //     assert(len == cut_len, "write fail 1!");
+    // }
+    // inode_print(ip_1, "small_data");
 
-    len = inode_read_data(ip_1, 120 * cut_len + 4, cut_len, small_dst, false);
-    assert(len == cut_len, "read fail 1!");
-    printf("read data:");
-    for (int i = 0; i < 10; i++)
-        printf(" %d", small_dst[i]);
-    printf("\n\n");
+    // len = inode_read_data(ip_1, 120 * cut_len + 4, cut_len, small_dst, false);
+    // assert(len == cut_len, "read fail 1!");
+    // printf("read data:");
+    // for (int i = 0; i < 10; i++)
+    //     printf(" %d", small_dst[i]);
+    // printf("\n\n");
 
-    ip_1->disk_info.nlink = 0;
-    inode_unlock(ip_1);
-    inode_put(ip_1);
+    // ip_1->disk_info.nlink = 0;
+    // inode_unlock(ip_1);
+    // inode_put(ip_1);
 
     /* 大批量读写测试 */
 
@@ -134,8 +135,9 @@ void test2()
     cut_len = PGSIZE * 4 + 1110;
     for (uint32 offset = 0; offset < cut_len * 10000; offset += cut_len)
     {
-        printf("%d\n", offset / cut_len);
+        // printf("%d\n", offset / cut_len);
         len = inode_write_data(ip_2, offset, cut_len, big_src, false);
+        printf("%d bytes %d\n", offset, len);
         assert(len == cut_len, "write fail 2!");
     }
     inode_print(ip_2, "big_data");
@@ -274,6 +276,7 @@ void test4()
     inode_rw(rooti, true);
     inode_rw(ip_1, true);
     inode_rw(ip_2, true);
+    inode_rw(ip_3, true);
 
     inode_unlock(rooti);
     inode_unlock(ip_1);

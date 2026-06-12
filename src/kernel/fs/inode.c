@@ -465,7 +465,7 @@ uint32 inode_write_data(inode_t *ip, uint32 offset, uint32 len, void *src, bool 
         total += chunk;
         offset += chunk;
     }
-
+    
     /* 更新文件大小 */
     if (offset > ip->disk_info.size)
         ip->disk_info.size = offset;

@@ -113,16 +113,14 @@ buffer_t *buffer_get(uint32 block_num)
             return &node->buf;
         }
     }
-
     // 2. 在非活跃链表中寻找 (从head->next开始)
-    for (node = buf_head_inactive.next; node != &buf_head_inactive; node = node->next)
+    for (node = buf_head_inactive.next; node != &buf_head_inactive && node->buf.block_num != BLOCK_NUM_UNUSED; node = node->next)
     {
         if (node->buf.block_num == block_num)
         {
             // 找到后移动到活跃链表的head->next
             insert_node(node, true, true);
             node->buf.ref++;
-
             bool need_disk_read = false;
             if (node->buf.data == NULL)
             {
@@ -196,7 +194,7 @@ uint32 buffer_freemem(uint32 buffer_count)
 
     // 从后向前遍历非活跃链表 (最不活跃的元素位于head->prev)
     for (buffer_node_t *node = buf_head_inactive.prev;
-         node != &buf_head_inactive && freed < buffer_count;)
+         node != &buf_head_inactive && freed < buffer_count; node = node->prev)
     {
         if (node->buf.data != NULL)
         {
@@ -204,7 +202,6 @@ uint32 buffer_freemem(uint32 buffer_count)
             node->buf.data = NULL;
             freed++;
         }
-        node = node->prev;
     }
 
     spinlock_release(&lk_buf_cache);
@@ -240,4 +237,25 @@ void buffer_print_info()
     printf("over!\n");
 
     spinlock_release(&lk_buf_cache);
+}
+
+uint32 buffer_invalidate(uint32 buffer_count)
+{
+    uint32 freed = 0;
+
+    assert(spinlock_holding(&lk_buf_cache), "not holding lk_buf_cache");
+
+    // 从后向前遍历非活跃链表 (最不活跃的元素位于head->prev)
+    for (buffer_node_t *node = buf_head_inactive.prev;
+         node != &buf_head_inactive && freed < buffer_count; node = node->prev)
+    {
+        if (node->buf.data != NULL)
+        {
+            pmem_free((uint64)node->buf.data, true);
+            node->buf.data = NULL;
+            freed++;
+        }
+    }
+
+    return freed;
 }

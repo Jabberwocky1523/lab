@@ -54,7 +54,8 @@ void spinlock_acquire(spinlock_t *lk)
     // 在判断是否已经持有锁
     if (spinlock_holding(lk))
     {
-        panic("已经持有锁!");
+        printf("已经持有%s锁!", lk->name);
+        panic("");
     }
     // 尝试拿锁
     while (__sync_lock_test_and_set(&lk->locked, 1) != 0)
@@ -69,7 +70,8 @@ void spinlock_release(spinlock_t *lk)
     // 判断是否持有该锁
     if (!spinlock_holding(lk))
     {
-        panic("未持有该锁!");
+        printf("未持有%s锁!", lk->name);
+        panic("");
     }
     lk->cpuid = -1;
     __sync_synchronize();

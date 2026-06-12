@@ -14,9 +14,9 @@ void buffer_put(buffer_t *buf);
 void buffer_write(buffer_t *buf);
 uint32 buffer_freemem(uint32 buffer_count);
 void buffer_print_info();
+uint32 buffer_invalidate(uint32 buffer_count);
 
 /* bitmap.c: data_bitmap和inode_bitmap的管理 */
-
 uint32 bitmap_alloc_block();
 uint32 bitmap_alloc_inode();
 void bitmap_free_block(uint32 block_num);
