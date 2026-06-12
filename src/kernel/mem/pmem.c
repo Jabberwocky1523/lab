@@ -1,5 +1,8 @@
 #include "mod.h"
 
+/* 前向声明: 来自 fs/buf.c */
+uint32 buffer_invalidate(uint32 buffer_count);
+
 // 内核空间和用户空间的可分配物理页分开描述
 static alloc_region_t kern_region, user_region;
 
@@ -183,4 +186,6 @@ void test_case_2()
 // 获取可用内存信息
 void pmem_stat(uint32 *free_pages_in_kernel, uint32 *free_pages_in_user)
 {
+    *free_pages_in_kernel = kern_region.allocable;
+    *free_pages_in_user = user_region.allocable;
 }

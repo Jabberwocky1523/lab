@@ -13,6 +13,7 @@ static spinlock_t print_lk;
 /* 初始化uart + 初始化printf锁 */
 void print_init(void)
 {
+    cons_init();
     uart_init();
     spinlock_init(&print_lk, "printf");
 }

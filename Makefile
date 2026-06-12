@@ -91,9 +91,9 @@ $(TARGET)/kernel/%.o: $(KernelPath)/%.c
 $(USER_INIT_OBJ): $(USER_INIT_C)
 	$(CC) $(CFLAGS) -I. -c -o $@ $<
 
-# 通用库和测试程序的 .o（共享规则）
+# 通用库和测试程序的 .o（共享规则，-Os优化体积）
 $(TARGET)/user/%.o: $(UserPath)/%.c
-	$(CC) $(CFLAGS) -I. -c -o $@ $<
+	$(CC) $(CFLAGS) -Os -I. -c -o $@ $<
 
 # 链接普通用户程序
 $(TARGET)/user/%.elf: $(TARGET)/user/%.o $(USER_LIB_OBJ)

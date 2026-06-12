@@ -25,7 +25,7 @@ uint64 sys_brk()
     if (new_heap_top > old_heap_top)
     {
         // 扩展堆
-        uint64 result = uvm_heap_grow(p->pgtbl, old_heap_top, (uint32)(new_heap_top - old_heap_top));
+        uint64 result = uvm_heap_grow(p->pgtbl, old_heap_top, (uint32)(new_heap_top - old_heap_top), PTE_R | PTE_W);
         if (result == old_heap_top)
         {
             // 扩展失败
@@ -360,6 +360,51 @@ uint64 sys_flush_buffer()
 */
 uint64 sys_exec()
 {
+    char path[STR_MAXLEN + 1];
+    char *argv[ELF_MAXARGS + 1];
+    uint64 uargv;
+    int i;
+
+    /* 读取path参数 */
+    arg_str(0, path, STR_MAXLEN);
+
+    /* 读取argv数组 (用户空间中的指针数组) */
+    arg_uint64(1, &uargv);
+
+    memset(argv, 0, sizeof(argv));
+
+    /* 从用户空间逐个读取argv字符串 */
+    for (i = 0; i < ELF_MAXARGS; i++)
+    {
+        uint64 uarg_ptr;
+        proc_t *p = myproc();
+
+        /* 读取argv[i]指针 */
+        uvm_copyin(p->pgtbl, (uint64)&uarg_ptr, uargv + i * sizeof(uint64), sizeof(uint64));
+
+        if (uarg_ptr == 0)
+            break;
+
+        /* 分配内核空间暂存字符串 */
+        argv[i] = (char *)pmem_alloc(true);
+        if (argv[i] == NULL)
+        {
+            /* 释放之前分配的 */
+            for (int j = 0; j < i; j++)
+                pmem_free((uint64)argv[j], true);
+            return -1;
+        }
+
+        uvm_copyin_str(p->pgtbl, (uint64)argv[i], uarg_ptr, ELF_MAXARG_LEN);
+    }
+
+    int ret = proc_exec(path, argv);
+
+    /* 释放临时分配的内存 */
+    for (int j = 0; j < i; j++)
+        pmem_free((uint64)argv[j], true);
+
+    return ret;
 }
 
 /* 构建fd->file的映射, 返回fd */
@@ -385,6 +430,24 @@ static uint32 alloc_fd(file_t *file)
 */
 uint64 sys_open()
 {
+    char path[STR_MAXLEN + 1];
+    uint32 open_mode;
+
+    arg_str(0, path, STR_MAXLEN);
+    arg_uint32(1, &open_mode);
+
+    file_t *file = file_open(path, open_mode);
+    if (file == NULL)
+        return -1;
+
+    uint32 fd = alloc_fd(file);
+    if (fd == (uint32)-1)
+    {
+        file_close(file);
+        return -1;
+    }
+
+    return fd;
 }
 
 /*
@@ -394,6 +457,17 @@ uint64 sys_open()
 */
 uint64 sys_close()
 {
+    proc_t *p = myproc();
+    uint32 fd;
+
+    arg_uint32(0, &fd);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return -1;
+
+    file_close(p->open_file[fd]);
+    p->open_file[fd] = NULL;
+    return 0;
 }
 
 /*
@@ -405,6 +479,18 @@ uint64 sys_close()
 */
 uint64 sys_read()
 {
+    proc_t *p = myproc();
+    uint32 fd, len;
+    uint64 addr;
+
+    arg_uint32(0, &fd);
+    arg_uint32(1, &len);
+    arg_uint64(2, &addr);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return 0;
+
+    return file_read(p->open_file[fd], len, addr, true);
 }
 
 /*
@@ -416,6 +502,18 @@ uint64 sys_read()
 */
 uint64 sys_write()
 {
+    proc_t *p = myproc();
+    uint32 fd, len;
+    uint64 addr;
+
+    arg_uint32(0, &fd);
+    arg_uint32(1, &len);
+    arg_uint64(2, &addr);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return 0;
+
+    return file_write(p->open_file[fd], len, addr, true);
 }
 
 /*
@@ -427,6 +525,17 @@ uint64 sys_write()
 */
 uint64 sys_lseek()
 {
+    proc_t *p = myproc();
+    uint32 fd, offset, flag;
+
+    arg_uint32(0, &fd);
+    arg_uint32(1, &offset);
+    arg_uint32(2, &flag);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return -1;
+
+    return file_lseek(p->open_file[fd], offset, flag);
 }
 
 /*
@@ -436,6 +545,26 @@ uint64 sys_lseek()
 */
 uint64 sys_dup()
 {
+    proc_t *p = myproc();
+    uint32 fd;
+
+    arg_uint32(0, &fd);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return -1;
+
+    file_t *f = file_dup(p->open_file[fd]);
+    if (f == NULL)
+        return -1;
+
+    uint32 new_fd = alloc_fd(f);
+    if (new_fd == (uint32)-1)
+    {
+        file_close(f);
+        return -1;
+    }
+
+    return new_fd;
 }
 
 /*
@@ -446,6 +575,17 @@ uint64 sys_dup()
 */
 uint64 sys_fstat()
 {
+    proc_t *p = myproc();
+    uint32 fd;
+    uint64 addr;
+
+    arg_uint32(0, &fd);
+    arg_uint64(1, &addr);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return -1;
+
+    return file_get_stat(p->open_file[fd], addr);
 }
 
 /*
@@ -457,6 +597,24 @@ uint64 sys_fstat()
 */
 uint64 sys_get_dentries()
 {
+    proc_t *p = myproc();
+    uint32 fd, buf_len;
+    uint64 addr;
+
+    arg_uint32(0, &fd);
+    arg_uint64(1, &addr);
+    arg_uint32(2, &buf_len);
+
+    if (fd >= N_OPEN_FILE_PER_PROC || p->open_file[fd] == NULL)
+        return -1;
+
+    /* file_read 对于目录文件会调用 dentry_transmit */
+    uint32 read_len = file_read(p->open_file[fd], buf_len, addr, true);
+
+    /* 目录读完后重置offset以便下次读取 */
+    p->open_file[fd]->offset = 0;
+
+    return read_len;
 }
 
 /*
@@ -466,6 +624,16 @@ uint64 sys_get_dentries()
 */
 uint64 sys_mkdir()
 {
+    char path[STR_MAXLEN + 1];
+
+    arg_str(0, path, STR_MAXLEN);
+
+    inode_t *ip = path_create_inode(path, INODE_TYPE_DIR, INODE_MAJOR_DEFAULT, INODE_MINOR_DEFAULT);
+    if (ip == NULL)
+        return -1;
+
+    inode_put(ip);
+    return 0;
 }
 
 /*
@@ -475,6 +643,33 @@ uint64 sys_mkdir()
 */
 uint64 sys_chdir()
 {
+    proc_t *p = myproc();
+    char new_path[STR_MAXLEN + 1];
+
+    arg_str(0, new_path, STR_MAXLEN);
+
+    inode_t *ip = path_to_inode(new_path);
+    if (ip == NULL)
+        return -1;
+
+    inode_lock(ip);
+
+    /* 必须是目录 */
+    if (ip->disk_info.type != INODE_TYPE_DIR)
+    {
+        inode_unlock(ip);
+        inode_put(ip);
+        return -1;
+    }
+
+    inode_unlock(ip);
+
+    /* 替换当前工作目录 */
+    if (p->cwd != NULL)
+        inode_put(p->cwd);
+    p->cwd = ip; /* ip的ref已经被path_to_inode增加了 */
+
+    return 0;
 }
 
 /*
@@ -483,6 +678,25 @@ uint64 sys_chdir()
 */
 uint64 sys_print_cwd()
 {
+    proc_t *p = myproc();
+
+    if (p->cwd == NULL)
+    {
+        printf("cwd: (null)\n");
+        return -1;
+    }
+
+    /* 分配缓冲区用于存储路径 */
+    char path[STR_MAXLEN + 1];
+    uint32 offset = inode_to_path(p->cwd, path, STR_MAXLEN);
+    if (offset == (uint32)-1)
+    {
+        printf("cwd: (error)\n");
+        return -1;
+    }
+
+    printf("cwd: %s\n", path + offset);
+    return 0;
 }
 
 /*
@@ -493,6 +707,13 @@ uint64 sys_print_cwd()
 */
 uint64 sys_link()
 {
+    char old_path[STR_MAXLEN + 1];
+    char new_path[STR_MAXLEN + 1];
+
+    arg_str(0, old_path, STR_MAXLEN);
+    arg_str(1, new_path, STR_MAXLEN);
+
+    return path_link(old_path, new_path);
 }
 
 /*
@@ -502,4 +723,9 @@ uint64 sys_link()
 */
 uint64 sys_unlink()
 {
+    char path[STR_MAXLEN + 1];
+
+    arg_str(0, path, STR_MAXLEN);
+
+    return path_unlink(path);
 }

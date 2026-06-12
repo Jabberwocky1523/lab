@@ -22,6 +22,19 @@ void memmove(void *dst, const void *src, uint32 n)
     }
 }
 
+void *memcpy(void *dst, const void *src, uint32 n)
+{
+    char *d = dst;
+    const char *s = src;
+    while (n--)
+    {
+        *d = *s;
+        d++;
+        s++;
+    }
+    return dst;
+}
+
 int strncmp(const char *p, const char *q, uint32 n)
 {
     while (n > 0 && *p && *p == *q)

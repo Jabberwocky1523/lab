@@ -402,7 +402,7 @@ uint32 inode_read_data(inode_t *ip, uint32 offset, uint32 len, void *dst, bool i
         len = ip->disk_info.size - offset;
 
     uint32 total = 0;
-    char *dst_bytes = (char *)dst;
+    proc_t *p = myproc();
 
     while (total < len)
     {
@@ -415,7 +415,10 @@ uint32 inode_read_data(inode_t *ip, uint32 offset, uint32 len, void *dst, bool i
         uint32 phys_block = locate_or_add_block(ip->disk_info.index, block_num);
         buffer_t *buf = buffer_get(phys_block);
 
-        memmove(dst_bytes + total, buf->data + block_off, chunk);
+        if (is_user_dst)
+            uvm_copyout(p->pgtbl, (uint64)dst + total, (uint64)(buf->data + block_off), chunk);
+        else
+            memmove((char *)dst + total, buf->data + block_off, chunk);
 
         buffer_put(buf);
 
@@ -445,7 +448,7 @@ uint32 inode_write_data(inode_t *ip, uint32 offset, uint32 len, void *src, bool 
         return (uint32)-1;
 
     uint32 total = 0;
-    char *src_bytes = (char *)src;
+    proc_t *p = myproc();
 
     while (total < len)
     {
@@ -458,7 +461,11 @@ uint32 inode_write_data(inode_t *ip, uint32 offset, uint32 len, void *src, bool 
         uint32 phys_block = locate_or_add_block(ip->disk_info.index, block_num);
         buffer_t *buf = buffer_get(phys_block);
 
-        memmove(buf->data + block_off, src_bytes + total, chunk);
+        if (is_user_src)
+            uvm_copyin(p->pgtbl, (uint64)(buf->data + block_off), (uint64)src + total, chunk);
+        else
+            memmove(buf->data + block_off, (char *)src + total, chunk);
+
         buffer_write(buf);
         buffer_put(buf);
 

@@ -1,10 +1,6 @@
 /* disk layout: [ super block | inode bitmap | inode | data bitmap | data ] */
 
-typedef enum
-{
-    false = 0,
-    true = 1
-} bool;
+#include <stdbool.h>
 
 #ifndef NULL
 #define NULL ((void *)0)

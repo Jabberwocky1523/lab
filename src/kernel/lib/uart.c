@@ -76,7 +76,7 @@ int uart_getc_sync(void)
         return -1;
 }
 
-// 中断处理(键盘输入->屏幕输出)
+// 中断处理(键盘输入 -> console)
 void uart_intr(void)
 {
     while (1)
@@ -86,6 +86,6 @@ void uart_intr(void)
         {
             break;
         }
-        uart_putc_sync(c);
+        cons_edit(c);
     }
 }

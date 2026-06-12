@@ -49,6 +49,31 @@ static void proc_return()
 		fs_inited = true;
 	}
 
+	/* 为proczero设置标准输入/输出/错误和工作目录 */
+	if (p->open_file[0] == NULL && p->open_file[1] == NULL && p->open_file[2] == NULL)
+	{
+		/* 打开stdin (fd=0) */
+		p->open_file[0] = file_open("/dev/stdin", FILE_OPEN_READ);
+		if (p->open_file[0] == NULL)
+			panic("proc_return: cannot open stdin");
+
+		/* 打开stdout (fd=1) */
+		p->open_file[1] = file_open("/dev/stdout", FILE_OPEN_WRITE);
+		if (p->open_file[1] == NULL)
+			panic("proc_return: cannot open stdout");
+
+		/* 打开stderr (fd=2) */
+		p->open_file[2] = file_open("/dev/stderr", FILE_OPEN_WRITE);
+		if (p->open_file[2] == NULL)
+			panic("proc_return: cannot open stderr");
+
+		/* 设置cwd为根目录 */
+		if (p->cwd == NULL)
+		{
+			p->cwd = inode_get(ROOT_INODE);
+		}
+	}
+
 	trap_user_return();
 }
 
@@ -74,6 +99,9 @@ void proc_init()
 		p->heap_top = 0;
 		p->ustack_npage = 0;
 		p->mmap = NULL;
+		p->cwd = NULL;
+		for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+		    p->open_file[i] = NULL;
 		memset(p->name, 0, 16);
 		memset(&p->ctx, 0, sizeof(p->ctx));
 	}
@@ -158,6 +186,23 @@ void proc_free(proc_t *p)
 		p->pgtbl = NULL;
 		// uvm_destroy_pgtbl 已经释放了 TRAPFRAME 对应的物理页 (即 p->tf)
 		p->tf = NULL;
+	}
+
+	// 释放打开文件表
+	for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+	{
+		if (p->open_file[i] != NULL)
+		{
+			file_close(p->open_file[i]);
+			p->open_file[i] = NULL;
+		}
+	}
+
+	// 释放工作目录
+	if (p->cwd != NULL)
+	{
+		inode_put(p->cwd);
+		p->cwd = NULL;
 	}
 
 	// 释放mmap链表中的所有节点
@@ -280,6 +325,17 @@ int proc_fork()
 	// 复制父进程的堆栈信息
 	np->heap_top = p->heap_top;
 	np->ustack_npage = p->ustack_npage;
+
+	// 复制父进程的打开文件表
+	for (int i = 0; i < N_OPEN_FILE_PER_PROC; i++)
+	{
+		if (p->open_file[i] != NULL)
+			np->open_file[i] = file_dup(p->open_file[i]);
+	}
+
+	// 复制父进程的工作目录
+	if (p->cwd != NULL)
+		np->cwd = inode_dup(p->cwd);
 
 	// 复制父进程的mmap链表
 	// (uvm_copy_pgtbl已经复制了物理页, 这里需要复制mmap链表结构)

@@ -135,12 +135,57 @@ void inode_init(inode_disk_t *ip, short type, short major, short minor)
         ip->index[i] = 0;
 }
 
+/*
+    获取第logical_block个数据块的物理块号
+    如果不存在则分配新的
+*/
+static unsigned int get_or_alloc_block(inode_disk_t *ip, unsigned int logical_block)
+{
+    unsigned int entry_per_block = BLOCK_SIZE / sizeof(unsigned int);
+
+    /* 直接映射 */
+    if (logical_block < INODE_INDEX_1)
+    {
+        if (ip->index[logical_block] == 0)
+            ip->index[logical_block] = block_alloc();
+        return ip->index[logical_block];
+    }
+
+    /* 一级间接映射: 索引在 index[10] 和 index[11] */
+    unsigned int remaining = logical_block - INODE_INDEX_1;
+    unsigned int idx_slot = INODE_INDEX_1 + remaining / entry_per_block;
+    unsigned int idx_off = remaining % entry_per_block;
+
+    if (idx_slot >= INODE_INDEX_2)
+    {
+        printf("inode_append: data exceeds max supported blocks!\n");
+        return 0;
+    }
+
+    /* 分配索引块 */
+    if (ip->index[idx_slot] == 0)
+        ip->index[idx_slot] = block_alloc();
+
+    /* 读入索引块 */
+    unsigned int idx_block[BLOCK_SIZE / sizeof(unsigned int)];
+    block_rw(ip->index[idx_slot], idx_block, false);
+
+    /* 分配数据块 */
+    if (idx_block[idx_off] == 0)
+    {
+        idx_block[idx_off] = block_alloc();
+        block_rw(ip->index[idx_slot], idx_block, true);
+    }
+
+    return idx_block[idx_off];
+}
+
 /* 对inode管理的数据做追加写 */
 void inode_append(inode_disk_t *ip, void *data, unsigned int len)
 {
     unsigned int old_blocks, new_blocks;
     unsigned int cut_len, tar_len;
-    unsigned int tmp, offset;
+    unsigned int tmp, offset, phys_block;
     char *data_new = (char *)data;
 
     old_blocks = COUNT_BLOCKS(ip->size, BLOCK_SIZE);
@@ -151,31 +196,29 @@ void inode_append(inode_disk_t *ip, void *data, unsigned int len)
     /* 如果有必要, 扩充block空间 */
     if (new_blocks > old_blocks)
     {
-        if (new_blocks > INODE_BLOCK_INDEX_1)
-        { // 出于简化考虑, 暂不启用间接映射
-            printf("inode_append: data len out of space!\n");
-            return;
-        }
-        for (int i = old_blocks; i < new_blocks; i++)
-            ip->index[i] = block_alloc();
+        for (unsigned int i = old_blocks; i < new_blocks; i++)
+            get_or_alloc_block(ip, i);
     }
 
     /* 分段写入各个block */
     while (len > 0)
     {
-        if (tmp == ip->size / BLOCK_SIZE)
+        phys_block = get_or_alloc_block(ip, tmp);
+
+        if (tmp * BLOCK_SIZE < ip->size)
         { /* last old block */
             cut_len = MIN(BLOCK_SIZE - (ip->size % BLOCK_SIZE), len);
             offset = ip->size % BLOCK_SIZE;
-            block_rw(ip->index[tmp], data_buf, false);
+            block_rw(phys_block, data_buf, false);
             memcpy(data_buf + offset, data_new, cut_len);
         }
         else
         { /* new block */
             cut_len = MIN(BLOCK_SIZE, len);
+            memset(data_buf, 0, BLOCK_SIZE);
             memcpy(data_buf, data_new, cut_len);
         }
-        block_rw(ip->index[tmp], data_buf, true);
+        block_rw(phys_block, data_buf, true);
 
         len -= cut_len;
         data_new += cut_len;
@@ -225,7 +268,8 @@ int main(int argc, char *argv[])
 
     char name[MAXLEN_FILENAME];
     char buf[BLOCK_SIZE];
-    unsigned int read_len, total_len;
+    unsigned int read_len;
+    unsigned int total_len __attribute__((unused));
     int fd;
 
     /* step-1: 填充 superblock 结构体 */

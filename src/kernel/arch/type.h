@@ -12,11 +12,11 @@ typedef unsigned int uint32;
 typedef unsigned long long uint64;
 typedef unsigned long long reg;
 
-// typedef enum
-// {
-//     false = 0,
-//     true = 1
-// } bool;
+typedef enum
+{
+    false = 0,
+    true = 1
+} bool;
 
 #ifndef NULL
 #define NULL ((void *)0)

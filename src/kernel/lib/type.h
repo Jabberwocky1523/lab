@@ -39,6 +39,19 @@
 #define ALIGN_UP(addr, refer) (((addr) + (refer) - 1) & ~((refer) - 1)) // 向上对齐
 #define ALIGN_DOWN(addr, refer) ((addr) & ~((refer) - 1))               // 向下对齐
 
+/* 控制台输入缓冲区大小 */
+#define CONSOLE_INPUT_BUF 128
+
+/* 控制台抽象 */
+typedef struct console
+{
+    spinlock_t lk;
+    char buf[CONSOLE_INPUT_BUF];
+    uint32 read_idx;
+    uint32 writ_idx;
+    uint32 edit_idx;
+} console_t;
+
 typedef struct cpu
 {
     int noff;      // 关中断的深度
