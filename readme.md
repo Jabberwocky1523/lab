@@ -67,12 +67,12 @@ ECNU-OSLAB-2025-TASK
 
 ### 修改文件清单
 
-| 文件 | 修改内容 |
-|------|----------|
-| `src/kernel/mem/kvm.c` | `kvm_init()` 新增 TRAMPOLINE + KSTACK(0) 映射 |
-| `src/kernel/proc/proc.c` | 实现 `proc_pgtbl_init()` + `proc_make_first()` |
-| `src/kernel/trap/trap_user.c` | 实现 `trap_user_handler()` + `trap_user_return()` |
-| `src/kernel/trap/trap_kernel.c` | 去掉 `interrupt_info` 的 `static`（供 trap_user.c 引用）|
+| 文件                            | 修改内容                                                 |
+| ------------------------------- | -------------------------------------------------------- |
+| `src/kernel/mem/kvm.c`          | `kvm_init()` 新增 TRAMPOLINE + KSTACK(0) 映射            |
+| `src/kernel/proc/proc.c`        | 实现 `proc_pgtbl_init()` + `proc_make_first()`           |
+| `src/kernel/trap/trap_user.c`   | 实现 `trap_user_handler()` + `trap_user_return()`        |
+| `src/kernel/trap/trap_kernel.c` | 去掉 `interrupt_info` 的 `static`（供 trap_user.c 引用） |
 
 ### 详细实现
 
@@ -158,3 +158,5 @@ boot → main() → kvm_init() → kvm_inithart() → trap_kernel_init()
                 → trap_user_return() → sret → U-mode
                     → initcode 继续执行...
 ```
+测试结果：
+![alt text](picture/image.png)
