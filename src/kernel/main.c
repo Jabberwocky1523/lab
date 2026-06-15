@@ -17,11 +17,11 @@ int main()
         printf("cpu %d is booting!\n", cpuid);
 
         pmem_init();
-        mmap_init();
         kvm_init();
         kvm_inithart();
         trap_kernel_init();
         trap_kernel_inithart();
+        mmap_init();
         proc_make_first();
         __sync_synchronize();
         started = 1;
