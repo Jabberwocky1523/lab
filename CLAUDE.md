@@ -4,77 +4,90 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-ECNU-OSLAB RISC-V 操作系统内核（基于 xv6 风格），当前处于 **lab-4**（第一个用户进程的诞生）。运行在 QEMU `virt` 机器上，128MB 内存，2 个 CPU 核心。
+ECNU-OSLAB-2025-TASK 教学操作系统，基于 RISC-V (rv64) 架构，运行在 QEMU 虚拟机上。当前分支 `lab6` 主题为"单进程走向多进程——进程调度与生命周期"。
 
 ## 构建与运行
 
 ```bash
-make build    # 编译内核和用户 initcode（生成 target/ 目录和 src/user/initcode.h）
-make run      # 编译并在 QEMU 中运行（qemu-system-riscv64, 无图形界面）
-make debug    # 编译并启动 QEMU（暂停等待 GDB 连接），然后用 gdb-multiarch 连接
-make clean    # 清理 target/、.gdbinit、src/user/initcode.h
+# 构建整个项目（内核 + 用户程序）
+make build
+
+# 构建并启动 QEMU 运行
+make run
+
+# 构建并以调试模式启动 QEMU（挂起等待 GDB 连接）
+make debug
+
+# 清理构建产物
+make clean
 ```
 
-调试连接：GDB 端口为 `(uid % 5000) + 25000`，VS Code `launch.json` 已配置好 `gdb-multiarch`。
-
-**工具链依赖**：`riscv64-linux-gnu-gcc`、`riscv64-linux-gnu-ld`、`riscv64-linux-gnu-objcopy`、`qemu-system-riscv64`、`gdb-multiarch`、`xxd`。
+- 工具链前缀：`riscv64-linux-gnu-`（定义在 [common.mk](common.mk)）
+- QEMU 配置：`qemu-system-riscv64`，2 个 CPU 核心，128M 内存，无图形界面
+- GDB 端口由 `$(id -u) % 5000 + 25000` 动态计算
+- 用户程序 [initcode.c](src/user/initcode.c) 被编译为二进制后通过 `xxd -i` 转换为 C 头文件 [initcode.h](src/user/initcode.h)，嵌入内核
 
 ## 代码架构
 
-### 三头文件模块约定
+### 模块依赖层次（自上而下）
 
-每个内核模块严格遵循三层头文件结构，**源文件只 include `mod.h`**：
+```
+arch  →  lib  →  lock  →  proc  →  syscall  →  trap
+                                   ↘  mem     ↗
+```
 
-1. **`type.h`** — 类型定义、结构体、常量、宏（最低层，仅依赖 `arch/type.h`）
-2. **`method.h`** — 函数声明（仅 include 自身的 `type.h`）
-3. **`mod.h`** — 伞形头文件，include `type.h` + `method.h` + 其他模块依赖
-
-模块位于 `src/kernel/` 下：`arch/`、`boot/`、`lib/`、`lock/`、`mem/`、`trap/`、`proc/`。
-
-### 命名规范
-
-- 类型：`_t` 后缀（`proc_t`、`spinlock_t`、`pgtbl_t`）
-- 函数：`模块_函数名`（`pmem_alloc`、`vm_mappages`、`spinlock_acquire`）
-- 寄存器操作：`r_`/`w_` 前缀（`r_mhartid()`、`w_satp()`、`r_tp()`）
-- 常量：`UPPER_SNAKE_CASE`（`PGSIZE`、`TRAMPOLINE`、`KSTACK`、`NCPU`）
+- **arch**：RISC-V 特权架构相关定义（CSR 寄存器读写宏、sstatus/satp/stvec 等位操作）
+- **lib**：基础库（UART 输出、printf、字符串/内存工具、CPU 信息）
+- **lock**：自旋锁 (`spinlock_t`) 和睡眠锁 (`sleeplock_t`)，睡眠锁依赖 proc 模块的睡眠/唤醒
+- **mem**：物理内存分配 (`pmem`)、内核页表 (`kvm`，映射内核代码+数据+内核栈+ trampoline)、用户态页表和 mmap (`uvm`, `mmap`)
+- **proc**：进程管理核心——进程结构体、分配/释放/调度/睡眠/唤醒/fork/exit/wait
+- **syscall**：系统调用跳转表 + 参数解析 + 各 sys_* 实现函数
+- **trap**：中断/异常处理（内核态 trap、用户态 trap、时钟中断、PLIC 外设中断、trampoline 切换）
+- **user**：用户态 initcode，通过 `syscall(num, args...)` 宏发起系统调用
 
 ### 启动流程
 
-1. `boot/entry.S`（M-mode）→ 设置栈 → `start()`
-2. `boot/start.c`：关分页、保存 hartid 到 `tp`、委托中断到 S-mode（`medeleg`/`mideleg`）、初始化 M-mode 定时器、配置 PMP、`mret` 进入 S-mode
-3. `main.c`：CPU 0 执行完整初始化序列（print → pmem → kvm → trap → proc），其他 CPU 自旋等待后调用 `kvm_inithart` + `trap_kernel_inithart`
+1. `_entry`（[boot/entry.S](src/kernel/boot/entry.S)）→ `start()`（[boot/start.c](src/kernel/boot/start.c)）：设置 M-mode 中断委托，初始化栈，切换到 S-mode 跳转至 `main()`
+2. CPU0 的 `main()` 依次初始化：`print_init` → `pmem_init` → `kvm_init` → `kvm_inithart` → `mmap_init` → `proc_init` → `proc_make_first` → `trap_kernel_init` → `trap_kernel_inithart`
+3. CPU1 等待 CPU0 初始化完成后仅执行 `kvm_inithart` + `trap_kernel_inithart`
+4. 所有 CPU 最终进入 `proc_scheduler()` 死循环，选择 RUNNABLE 进程执行
 
-### 关键内存布局（见 `mem/type.h` + `kernel.ld`）
+### 进程状态机
 
-- 内核加载地址：`0x80000000`
-- `TRAMPOLINE = VA_MAX - PGSIZE`：U/S 模式切换的共享代码页（内核和用户页表中恒等映射）
-- `TRAPFRAME = TRAMPOLINE - PGSIZE`：每进程陷阱帧
-- `KSTACK(procid) = TRAPFRAME - ((procid)+1) * 2 * PGSIZE`：每进程内核栈
-- `USER_BASE = PGSIZE`：用户地址空间从第 1 页开始（第 0 页不映射，捕获空指针）
-- SV39 三级页表，4KB 页大小
+```
+UNUSED → RUNNABLE → RUNNING → RUNNABLE  (抢占/让出CPU)
+                            → SLEEPING → RUNNABLE  (睡眠/唤醒)
+                            → ZOMBIE → UNUSED      (退出/回收)
+```
 
-### 自旋锁模式
+状态定义在 [src/kernel/proc/type.h](src/kernel/proc/type.h) 的 `enum proc_state`。
 
-使用 `push_off()`/`pop_off()` 嵌套中断禁用：`cpu_t.noff` 跟踪每个 CPU 的禁用深度。`spinlock_acquire` 先 `push_off()` 再用 `__sync_lock_test_and_set` 原子获取；`spinlock_release` 先 `__sync_lock_release` 再 `pop_off()`。
+### 用户态 ↔ 内核态切换机制
 
-### 陷阱/中断处理
+- **用户→内核**：硬件触发 trap → `user_vector`（trampoline.S）→ `trap_user_handler`（trap_user.c）→ 根据 scause 分发（系统调用/中断/缺页异常）
+- **内核→用户**：`trap_user_return`（trap_user.c）→ `user_return`（trampoline.S）→ 切换页表、恢复寄存器、sret
+- **内核态 trap**：由 `kernel_vector`（trap.S）→ `trap_kernel_handler`（trap_kernel.c）处理
+- Trampoline 页同时映射在内核和用户页表中（地址 `TRAMPOLINE = VA_MAX - PGSIZE`），使切换过程中 PC 始终有效
+- Trapframe 页紧随 trampoline 下方（`TRAPFRAME`），保存/恢复全部通用寄存器
 
-- **M-mode**：仅定时器中断。`trap.S` 中的 `timer_vector` 更新 `mtimecmp`，通过 `sip` 触发 S-mode 软件中断。
-- **S-mode（内核）**：`trap.S` 中的 `kernel_vector` 保存 31 个 GPR 到内核栈，调用 `trap_kernel_handler()`。
-- **S-mode（用户）**：`trampoline.S` 中的 `user_vector` 保存用户寄存器到 trapframe 并切换到内核页表；`user_return` 切换回用户页表并恢复用户寄存器。
+### 关键数据结构
 
-### 进程管理
+- **`proc_t`**（[proc/type.h](src/kernel/proc/type.h)）：包含 pid、锁、状态、父子指针、exit_code、sleep_space、用户页表、trapframe、内核栈地址、上下文（ra+sp+callee-saved 寄存器）。最多 32 个进程
+- **`trapframe_t`**：位于 TRAPFRAME 页面，保存用户→内核切换时的完整 CPU 状态
+- **`context_t`**：仅包含 ra、sp 和 callee-saved 寄存器，用于 `swtch()` 在同优先级上下文间切换
+- **物理内存**：通过空闲页链表管理（[mem/type.h](src/kernel/mem/type.h)），`ALLOC_BEGIN ~ ALLOC_END` 为可分配区域，前 `KERN_PAGES` 页归内核
 
-`proc_t` 结构包含：pid、用户页表、heap_top、用户栈页、trapframe 指针、内核栈地址、内核上下文。`swtch.S` 实现被调用者保存的上下文切换（ra, sp, s0-s11）。
+### 模块文件约定
 
-### 用户空间
+每个子模块遵循统一结构：
+- `type.h`：数据结构定义（`#pragma once` 守卫）
+- `method.h`：函数声明
+- `mod.h`：聚合 `type.h` + `method.h` + 依赖模块的 `mod.h`，其他模块只需包含目标模块的 `mod.h` 即可引入所有依赖链
 
-`initcode.c` 是第一个用户程序，编译后通过 `xxd` 转为 `initcode.h`（C 字节数组头文件）。`syscall_arch.h` 提供内联汇编 `ecall` 包装，系统调用号通过 a7 传递，当前仅有 `SYS_helloworld = 0`。
+### 系统调用
 
-## 注意事项
+系统调用号定义在 [src/user/syscall_num.h](src/user/syscall_num.h)（用户态和内核态共用）。当前支持：`brk`、`mmap`、`munmap`、`print_str`、`print_int`、`getpid`、`fork`、`wait`、`exit`、`sleep`。用户态通过 `syscall(num, args...)` 宏（[sys.h](src/user/sys.h)）发起 ecall，内核端由 `syscall()` 根据 `a7` 寄存器值查跳转表分发。
 
-- **`src/user/initcode.h` 是自动生成的**，不要手动编辑，`make build` 会重新生成
-- Include 路径 `-I.` 使得 include 相对于项目根目录；内核内模块引用用 `"模块名/mod.h"`，跨目录用 `"../模块名/mod.h"`
-- 用户代码编译额外加 `-march=rv64g -nostdinc`
-- 没有测试框架；`mem/pmem.c` 中有一个 `test_case_2()` 物理内存测试函数
+### 抢占式调度
 
+时钟中断到达后，内核态和用户态 trap handler 在处理完时钟后调用 `proc_yield()` 放弃 CPU，实现协作式的时间片轮转。`timer_wait()` 使用 `sys_timer` 睡眠锁 + `proc_sleep/proc_wakeup` 实现进程的定时睡眠。
