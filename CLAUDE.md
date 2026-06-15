@@ -4,77 +4,110 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-ECNU-OSLAB RISC-V 操作系统内核（基于 xv6 风格），当前处于 **lab-4**（第一个用户进程的诞生）。运行在 QEMU `virt` 机器上，128MB 内存，2 个 CPU 核心。
+这是 ECNU-OSLAB-2025-TASK 的 Lab9：一个基于 RISC-V 64 位架构的教学操作系统（类 xv6）。目前处于实验最后阶段，实现了物理内存管理、虚拟内存、进程管理、文件系统（virtio 磁盘驱动 → 缓冲层 → bitmap 分配器 → inode 层 → 目录/路径层 → 文件层 → 设备抽象层），以及 22 个系统调用。
 
-## 构建与运行
+工具链目标架构：`riscv64-linux-gnu-`，使用 `qemu-system-riscv64` 模拟器。
+
+## 常用命令
 
 ```bash
-make build    # 编译内核和用户 initcode（生成 target/ 目录和 src/user/initcode.h）
-make run      # 编译并在 QEMU 中运行（qemu-system-riscv64, 无图形界面）
-make debug    # 编译并启动 QEMU（暂停等待 GDB 连接），然后用 gdb-multiarch 连接
-make clean    # 清理 target/、.gdbinit、src/user/initcode.h
+make build          # 编译内核 + 用户程序 + mkfs + 磁盘映像
+make run            # build 后启动 QEMU（2 核，128M 内存，无图形界面）
+make debug          # build 后启动 QEMU 并暂停等待 GDB 连接（端口由 UID 计算）
+make clean          # 清理 target/、initcode.h、.gdbinit
 ```
 
-调试连接：GDB 端口为 `(uid % 5000) + 25000`，VS Code `launch.json` 已配置好 `gdb-multiarch`。
-
-**工具链依赖**：`riscv64-linux-gnu-gcc`、`riscv64-linux-gnu-ld`、`riscv64-linux-gnu-objcopy`、`qemu-system-riscv64`、`gdb-multiarch`、`xxd`。
+编译产物路径：
+- 内核 ELF：`target/kernel/kernel-qemu.elf`
+- 磁盘映像：`target/mkfs/disk.img`
+- 用户程序 ELF：`target/user/test_*.elf`
+- 用户程序被 mkfs 写入磁盘映像，initcode 通过 `xxd -i` 以二进制 blob 嵌入 `src/user/initcode.h`
 
 ## 代码架构
 
-### 三头文件模块约定
+### 三文件模式
 
-每个内核模块严格遵循三层头文件结构，**源文件只 include `mod.h`**：
+内核每个模块目录严格遵循 `type.h`（类型定义）+ `method.h`（函数声明）+ `mod.h`（聚合头文件）模式。消费者只需 `#include "某模块/mod.h"` 即可引入该模块的所有类型、函数及其传递依赖。
 
-1. **`type.h`** — 类型定义、结构体、常量、宏（最低层，仅依赖 `arch/type.h`）
-2. **`method.h`** — 函数声明（仅 include 自身的 `type.h`）
-3. **`mod.h`** — 伞形头文件，include `type.h` + `method.h` + 其他模块依赖
+`mod.h` 的依赖形成了 DAG：`arch`（叶子，无依赖）→ `lib` → `lock` → `mem` → `fs`/`proc`/`syscall` → `trap`（根，依赖一切）。
 
-模块位于 `src/kernel/` 下：`arch/`、`boot/`、`lib/`、`lock/`、`mem/`、`trap/`、`proc/`。
+### 模块职责
 
-### 命名规范
-
-- 类型：`_t` 后缀（`proc_t`、`spinlock_t`、`pgtbl_t`）
-- 函数：`模块_函数名`（`pmem_alloc`、`vm_mappages`、`spinlock_acquire`）
-- 寄存器操作：`r_`/`w_` 前缀（`r_mhartid()`、`w_satp()`、`r_tp()`）
-- 常量：`UPPER_SNAKE_CASE`（`PGSIZE`、`TRAMPOLINE`、`KSTACK`、`NCPU`）
+| 目录 | 职责 |
+|------|------|
+| `arch/` | RISC-V 基础类型（uint64/uint32/reg）和 CSR 位掩码常量 |
+| `boot/` | M 模式启动：`entry.S` 设置栈后调用 `start.c`，后者配置硬件后通过 mret 降级到 S 模式的 `main()` |
+| `lock/` | 自旋锁 (`spinlock_t`) 和睡眠锁 (`sleeplock_t`)。后者内部包装自旋锁，用于可能阻塞的临界区 |
+| `lib/` | UART 驱动、console 行缓冲 I/O、`printf`/`panic`、字符串工具、CPU 状态 |
+| `mem/` | 物理内存分配器（伙伴空闲链表）、内核 SV39 页表（恒等映射）、用户虚拟内存（copyin/copyout/mmap/堆栈增长）、mmap 区域节点池 |
+| `trap/` | PLIC 中断控制器、M 模式定时器、内核/用户 trap 处理、trampoline（共享页切换） |
+| `proc/` | 进程管理（32 槽位轮转调度）、`fork`/`wait`/`exit`、ELF 执行（`proc_exec`） |
+| `syscall/` | 系统调用分发表（`syscall.c`）+ 14 个 `sys_*` 实现（`sysfunc.c`）+ 参数提取工具 |
+| `fs/` | 文件系统六层：virtio 磁盘驱动 → buffer cache → bitmap 分配器 → inode 层 → dentry/路径 → 文件层/设备抽象 |
 
 ### 启动流程
 
-1. `boot/entry.S`（M-mode）→ 设置栈 → `start()`
-2. `boot/start.c`：关分页、保存 hartid 到 `tp`、委托中断到 S-mode（`medeleg`/`mideleg`）、初始化 M-mode 定时器、配置 PMP、`mret` 进入 S-mode
-3. `main.c`：CPU 0 执行完整初始化序列（print → pmem → kvm → trap → proc），其他 CPU 自旋等待后调用 `kvm_inithart` + `trap_kernel_inithart`
+```
+entry.S (M-mode, 0x80000000) → start.c:start()
+  → 配置 mstatus/deleg/timer/PMP
+  → mret 跳转到 main.c:main()
+    → CPU0: print_init → pmem_init → kvm_init → kvm_inithart(启用分页)
+    → mmap_init → virtio_disk_init → proc_init → proc_make_first
+    → trap_kernel_init + trap_kernel_inithart
+    → CPU1: kvm_inithart + trap_kernel_inithart
+    → 两个 CPU 进入 proc_scheduler() 调度循环
+```
 
-### 关键内存布局（见 `mem/type.h` + `kernel.ld`）
+### 文件系统分层架构
 
-- 内核加载地址：`0x80000000`
-- `TRAMPOLINE = VA_MAX - PGSIZE`：U/S 模式切换的共享代码页（内核和用户页表中恒等映射）
-- `TRAPFRAME = TRAMPOLINE - PGSIZE`：每进程陷阱帧
-- `KSTACK(procid) = TRAPFRAME - ((procid)+1) * 2 * PGSIZE`：每进程内核栈
-- `USER_BASE = PGSIZE`：用户地址空间从第 1 页开始（第 0 页不映射，捕获空指针）
-- SV39 三级页表，4KB 页大小
+1. **Virtio 磁盘驱动** (`virtio.c`)：MMIO virtio 块设备 `0x10001000`，每次读写一个 4096 字节块
+2. **Buffer Cache** (`buf.c`)：16384 个节点，双向循环链表（active + inactive），`buffer_get()` 先查 active 再淘汰 inactive 尾部
+3. **Bitmap 分配器** (`bitmap.c`)：管理 on-disk inode_bitmap 和 data_bitmap，通过 buffer cache 读写
+4. **Inode 层** (`inode.c`)：64 个内存 inode 缓存，10 个直接块 + 2 个一级间接 + 1 个二级间接（最大文件 ~4GB）。`inode_put` 在 ref==1 且 nlink==0 时自动释放所有资源
+5. **目录/路径层** (`dentry.c`)：目录 inode 中存储 `dentry_t[~64]`（60 字符名 + 4 字节 inode_num）。路径解析支持绝对路径和相对路径（从 `cwd` 出发），`.` 和 `..` 语义
+6. **文件层** (`fs.c`)：128 入口全局 `file_table`，`file_read/write` 按 inode 类型（DATA/DIR/DEVICE）分发
+7. **设备抽象** (`device.c`)：6 个设备（stdin/stdout/stderr/zero/null/gpt0），各有 major 号和读写函数指针
 
-### 自旋锁模式
+### 系统调用流程
 
-使用 `push_off()`/`pop_off()` 嵌套中断禁用：`cpu_t.noff` 跟踪每个 CPU 的禁用深度。`spinlock_acquire` 先 `push_off()` 再用 `__sync_lock_test_and_set` 原子获取；`spinlock_release` 先 `__sync_lock_release` 再 `pop_off()`。
+```
+用户程序: sys_open(...) → ecall (a7=syscall_num)
+  → user_vector (trampoline.S, 保存 32 个 GPR 到 trapframe)
+    → trap_user_handler() → syscall()
+      → 读 p->tf->a7 作为系统调用号，查 syscalls[] 跳转表
+      → arg_uint32/arg_str 从 p->tf->a0-a5 提取参数
+      → 调用 sys_XXX()，结果写入 p->tf->a0
+    → trap_user_return() → user_return (恢复 GPR, sret)
+```
 
-### 陷阱/中断处理
+系统调用号 1-22：brk, mmap, munmap, fork, wait, exit, sleep, getpid, exec, open, close, read, write, lseek, dup, fstat, get_dentries, mkdir, chdir, print_cwd, link, unlink。
 
-- **M-mode**：仅定时器中断。`trap.S` 中的 `timer_vector` 更新 `mtimecmp`，通过 `sip` 触发 S-mode 软件中断。
-- **S-mode（内核）**：`trap.S` 中的 `kernel_vector` 保存 31 个 GPR 到内核栈，调用 `trap_kernel_handler()`。
-- **S-mode（用户）**：`trampoline.S` 中的 `user_vector` 保存用户寄存器到 trapframe 并切换到内核页表；`user_return` 切换回用户页表并恢复用户寄存器。
+### 关键结构体
 
-### 进程管理
+- **`proc_t`**：pid, name, state, parent, pgtbl, heap_top, ustack_npage, mmap 链表, trapframe, kstack, ctx (callee-saved), cwd (inode_t*), open_file[10]。最多 32 个进程
+- **`file_t`**：ip (inode_t*), readable, writable, offset, ref
+- **`inode_t`**：inode_num, ref, sleeplock, disk_info (type/nlink/size/index[13])
+- **`buffer_t`**：block_num, ref, sleeplock, data[4096], disk 标志位
 
-`proc_t` 结构包含：pid、用户页表、heap_top、用户栈页、trapframe 指针、内核栈地址、内核上下文。`swtch.S` 实现被调用者保存的上下文切换（ra, sp, s0-s11）。
+### 虚拟地址空间布局
 
-### 用户空间
+```
+VA_MAX → TRAMPOLINE (1 页, 共享)
+       → TRAPFRAME  (1 页, 每进程)
+       → KSTACK(i)  (2 页 × 32 进程)
+       → MMAP 区域  (最大 64MB)
+       → 用户堆     (USER_BASE + 堆大小, 向上增长)
+       → 用户栈     (向下增长)
+       → USER_BASE = 0x1000 (0 页作为 guard page)
+```
 
-`initcode.c` 是第一个用户程序，编译后通过 `xxd` 转为 `initcode.h`（C 字节数组头文件）。`syscall_arch.h` 提供内联汇编 `ecall` 包装，系统调用号通过 a7 传递，当前仅有 `SYS_helloworld = 0`。
+### 编码约定
 
-## 注意事项
-
-- **`src/user/initcode.h` 是自动生成的**，不要手动编辑，`make build` 会重新生成
-- Include 路径 `-I.` 使得 include 相对于项目根目录；内核内模块引用用 `"模块名/mod.h"`，跨目录用 `"../模块名/mod.h"`
-- 用户代码编译额外加 `-march=rv64g -nostdinc`
-- 没有测试框架；`mem/pmem.c` 中有一个 `test_case_2()` 物理内存测试函数
-
+- 内核代码以 `-std=gnu11` 编译，`-Wall -Werror`，禁用栈保护、PIE，使用 `-mcmodel=medany`
+- 内核没有标准库，`printf`/`memmove`/`memset` 等均为自实现
+- 睡眠锁用于可能长时间持锁的操作（如磁盘 I/O），自旋锁用于短临界区
+- `inode_lock/unlock` 在首次加锁时自动从磁盘读取 `disk_info`（惰性加载）
+- 从用户空间读取数据必须通过 `uvm_copyin`/`uvm_copyin_str`，写入用户空间必须通过 `uvm_copyout`，不可直接 `memmove`
+- 用户态程序代码在 `src/user/`，编译时除 initcode 外均以 `-Os` 优化体积，链接脚本为 `src/loader/user.ld`
+- 系统调用封装通过预处理器元编程实现：`syscall(SYS_xxx, args...)` → `__syscallN(SYS_xxx, args...)` → 内联汇编 `ecall`
+- 磁盘映像通过 `src/mkfs/mkfs.c` 生成，该工具以 gcc（而非交叉编译器）编译并在主机运行

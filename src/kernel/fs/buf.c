@@ -200,6 +200,7 @@ uint32 buffer_freemem(uint32 buffer_count)
         {
             pmem_free((uint64)node->buf.data, true);
             node->buf.data = NULL;
+            node->buf.block_num = BLOCK_NUM_UNUSED;
             freed++;
         }
     }
