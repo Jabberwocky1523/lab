@@ -2,9 +2,8 @@
 #include "lib/mod.h"
 #include "mem/mod.h"
 #include "trap/mod.h"
+#include "proc/mod.h"
 volatile static int started = 0;
-
-volatile static int over_1 = 0, over_2 = 0;
 
 int main()
 {
@@ -20,6 +19,7 @@ int main()
         printf("cpu %d is booting!\n", cpuid);
         trap_kernel_init();
         trap_kernel_inithart();
+        proc_make_first();
         __sync_synchronize();
         started = 1;
     }
