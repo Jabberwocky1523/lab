@@ -94,8 +94,9 @@ void trap_user_return()
     tf->user_to_kern_trapvector = (uint64)trap_user_handler;
     tf->user_to_kern_hartid = mycpuid();
 
-    // 2. 将 stvec 设为 user_vector (用户态运行时 trap 走 trampoline)
-    w_stvec((uint64)user_vector);
+    // 2. 将 stvec 设为 TRAMPOLINE + offset(user_vector)
+    //    用户态 trap 时硬件跳转到 TRAMPOLINE VA, 两个页表均有映射, 切换 satp 无问题
+    w_stvec(TRAMPOLINE + ((uint64)user_vector - (uint64)trampoline));
 
     // 3. 将 sepc 设为用户程序计数器, 确保返回用户态后 PC 正确
     w_sepc(tf->user_to_kern_epc);
@@ -110,8 +111,10 @@ void trap_user_return()
     // 5. 设置 sscratch 指向 trapframe (user_vector 通过 sscratch 找到 trapframe)
     w_sscratch((uint64)TRAPFRAME);
 
-    // 6. 准备参数并调用 trampoline.S 中的 user_return(trapframe, satp)
-    //    user_return 切换到用户页表、恢复用户寄存器、sret 进入 U-mode
-    void (*fn)(void *, uint64) = (void (*)(void *, uint64))user_return;
+    // 6. 调用 trampoline.S 中的 user_return(trapframe, satp)
+    //    使用 TRAMPOLINE VA 调用: 内部切换 satp 后 PC 仍在 TRAMPOLINE 范围内,
+    //    用户页表已映射此地址, 不会 exec_page_fault
+    uint64 ret_va = TRAMPOLINE + ((uint64)user_return - (uint64)trampoline);
+    void (*fn)(void *, uint64) = (void (*)(void *, uint64))ret_va;
     fn((void *)TRAPFRAME, MAKE_SATP(p->pgtbl));
 }

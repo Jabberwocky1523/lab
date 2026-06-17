@@ -29,10 +29,9 @@ pgtbl_t proc_pgtbl_init(uint64 trapframe)
     memset(pgtbl, 0, PGSIZE);
 
     // 将trampoline映射到TRAMPOLINE地址(与内核页表映射到同一物理页)
+    // stvec 和 user_return 调用均使用 TRAMPOLINE VA, 切换 satp 后 PC 仍在此 VA,
+    // 用户页表自然能取指, 无需额外映射内核地址
     vm_mappages(pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
-    // 同时映射到内核地址: user_return 中切换 satp 后 PC 仍在内核地址,
-    // 用户页表必须能在同一 VA 取到 trampoline 指令, 否则 exec_page_fault
-    vm_mappages(pgtbl, (uint64)trampoline, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
 
     // 将trapframe物理页映射到TRAPFRAME地址, 用户态可读写
     vm_mappages(pgtbl, TRAPFRAME, trapframe, PGSIZE, PTE_R | PTE_W | PTE_U);
