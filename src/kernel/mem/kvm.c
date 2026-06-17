@@ -1,8 +1,9 @@
 #include "mod.h"
 
-// 内核页表
-static pgtbl_t kernel_pgtbl;
-
+// 内核页表 (非 static, 供 proc.c 等模块 extern 引用)
+pgtbl_t kernel_pgtbl;
+// 在trampoline.S里
+extern char trampoline[];
 // 根据pagetable,找到va对应的pte
 // 若设置alloc=true 则在PTE无效时尝试申请一个物理页
 // 成功返回PTE, 失败返回NULL
@@ -116,6 +117,10 @@ void kvm_init()
     vm_mappages(kernel_pgtbl, (uint64)KERNEL_DATA, (uint64)KERNEL_DATA, (uint64)ALLOC_BEGIN - (uint64)KERNEL_DATA, PTE_R | PTE_W);
     // 可分配区域
     vm_mappages(kernel_pgtbl, (uint64)ALLOC_BEGIN, (uint64)ALLOC_BEGIN, (uint64)ALLOC_END - (uint64)ALLOC_BEGIN, PTE_R | PTE_W);
+    // trampoline: 用户态/内核态切换代码, 映射到 TRAMPOLINE 虚拟地址
+    vm_mappages(kernel_pgtbl, TRAMPOLINE, (uint64)trampoline, PGSIZE, PTE_R | PTE_X);
+    // KSTACK(0): 为进程0申请内核栈物理页并映射
+    vm_mappages(kernel_pgtbl, KSTACK(0), (uint64)pmem_alloc(true), PGSIZE, PTE_R | PTE_W);
 }
 
 // 每个CPU都需要调用, 从不使用页表切换到使用内核页表

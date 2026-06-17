@@ -36,6 +36,7 @@ typedef unsigned long long reg;
 #define MSTATUS_MIE (1L << 3)
 
 /* Supervisor Status Register (sstatus) */
+#define SSTATUS_SUM (1L << 18)  /* permit Supervisor access to User Memory */
 #define SSTATUS_SPP (1L << 8)
 #define SSTATUS_SPIE (1L << 5)
 #define SSTATUS_UPIE (1L << 4)
