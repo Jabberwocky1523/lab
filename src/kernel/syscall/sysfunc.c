@@ -189,3 +189,18 @@ uint64 sys_munmap()
 
     return 0;
 }
+uint64 sys_printf()
+{
+    proc_t *p = myproc();
+    uint64 begin;
+    uint32 len;
+    arg_uint64(0, &begin);
+    arg_uint32(1, &len);
+    uint32 arr[len];
+    uvm_copyin(p->pgtbl, (uint64)arr, begin, len * sizeof(uint32));
+    for (uint32 i = 0; i < len; i++)
+    {
+        printf("%d ", arr[i]);
+    }
+    return 1;
+}
