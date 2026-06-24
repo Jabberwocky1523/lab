@@ -1,7 +1,7 @@
 #include "mod.h"
 
 // 内核页表
-pgtbl_t kernel_pgtbl;
+static pgtbl_t kernel_pgtbl;
 
 // in trampoline.S
 extern char trampoline[];
@@ -134,7 +134,6 @@ void kvm_init()
         uint64 kstack_pa = (uint64)pmem_alloc(true);
         vm_mappages(kernel_pgtbl, KSTACK(i), kstack_pa, PGSIZE, PTE_R | PTE_W);
     }
-
 }
 
 // 每个CPU都需要调用, 从不使用页表切换到使用内核页表
