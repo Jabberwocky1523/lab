@@ -336,9 +336,9 @@ void fs_init()
     // 初始化inode缓存
     inode_init();
     // test1();
-    test2();
+    // test2();
     // test3();
     // test4();
-    while (1)
-        ;
+    // while (1)
+    //     ;
 }
